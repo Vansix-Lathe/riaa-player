@@ -1,0 +1,22 @@
+{
+  "name": "逆RIAAプレイヤー",
+  "short_name": "逆RIAA",
+  "description": "Vansix エキサイタープロトタイプ用 逆RIAAプレイヤー",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#0f1115",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

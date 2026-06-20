@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>逆RIAAプレイヤー</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="逆RIAA">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+:root {
+  --bg: #0f1115;
+  --card: #1a1d24;
+  --border: rgba(255,255,255,0.1);
+  --text: #f0f0f0;
+  --text-secondary: #9a9ea8;
+  --accent: #4a9eff;
+  --success: #3ecf8e;
+  --danger: #ff5c5c;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.app { max-width: 480px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
+h1 { font-size: 18px; font-weight: 600; margin-bottom: 1.25rem; text-align: center; color: var(--text); }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1rem 1.1rem; margin-bottom: 12px; }
+.label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+.row { display: flex; align-items: center; gap: 10px; }
+.badge { font-size: 11px; padding: 3px 10px; border-radius: 100px; background: rgba(255,255,255,0.08); color: var(--text-secondary); }
+.badge.active { background: rgba(62,207,142,0.15); color: var(--success); }
+.badge.error { background: rgba(255,92,92,0.15); color: var(--danger); }
+#dropzone { border: 1.5px dashed rgba(255,255,255,0.2); border-radius: 14px; padding: 2.2rem 1rem; text-align: center; color: var(--text-secondary); font-size: 14px; cursor: pointer; margin-bottom: 12px; }
+#dropzone.loaded { border-color: var(--success); color: var(--success); border-style: solid; }
+.ctrl-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.btn { background: rgba(255,255,255,0.06); border: 1px solid var(--border); border-radius: 10px; padding: 10px 18px; font-size: 14px; color: var(--text); cursor: pointer; flex: 1; }
+.btn:active { transform: scale(0.97); }
+.btn.primary { background: rgba(74,158,255,0.15); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.btn:disabled { opacity: 0.4; }
+.slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.slider-row label { font-size: 12px; color: var(--text-secondary); width: 76px; flex-shrink: 0; }
+.slider-row input[type=range] { flex: 1; -webkit-appearance: none; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.15); }
+.slider-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); }
+.slider-row .val { font-size: 12px; font-weight: 600; min-width: 44px; text-align: right; color: var(--text); }
+.section-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 12px; }
+canvas { width: 100%; display: block; border-radius: 10px; background: rgba(255,255,255,0.03); }
+#filename { font-size: 13px; font-weight: 500; color: var(--text); word-break: break-all; }
+#status { font-size: 11px; }
+.icon { width: 26px; height: 26px; display: inline-block; vertical-align: middle; }
+.resetbtn { width: 100%; background: transparent; border: 1px solid var(--border); border-radius: 10px; padding: 8px; font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+.hint { font-size: 11px; color: var(--text-secondary); margin-top: 8px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>逆RIAA プレイヤー</h1>
+
+  <div class="card">
+    <div class="row" style="margin-bottom:10px;">
+      <span class="section-title" style="margin:0;">音源</span>
+      <span id="status" class="badge" style="margin-left:auto;">待機中</span>
+    </div>
+    <div id="dropzone" onclick="document.getElementById('fileinput').click()">
+      タップして音声ファイルを選択<br>
+      <span style="font-size:11px;">MP3 / WAV / FLAC / AAC</span>
+    </div>
+    <input type="file" id="fileinput" accept="audio/*" style="display:none;">
+    <div id="fileinfo" style="display:none;" class="row">
+      <span id="filename">—</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <p class="section-title">再生コントロール</p>
+    <div class="ctrl-row">
+      <button class="btn primary" id="btnPlay" disabled>再生</button>
+      <button class="btn" id="btnStop" disabled>停止</button>
+    </div>
+    <div class="row" style="justify-content:flex-end; margin-bottom:8px;">
+      <span id="time" style="font-size:12px;color:var(--text-secondary);">0:00</span>
+    </div>
+    <canvas id="meter" height="60"></canvas>
+  </div>
+
+  <div class="card">
+    <p class="section-title">逆RIAAパラメータ</p>
+    <div class="slider-row">
+      <label>ゲイン</label>
+      <input type="range" id="gain" min="-20" max="20" step="1" value="0">
+      <span class="val" id="gainVal">0 dB</span>
+    </div>
+    <div class="slider-row">
+      <label>T1 (3180µs)</label>
+      <input type="range" id="t1" min="2000" max="4000" step="10" value="3180">
+      <span class="val" id="t1Val">3180</span>
+    </div>
+    <div class="slider-row">
+      <label>T2 (318µs)</label>
+      <input type="range" id="t2" min="250" max="400" step="1" value="318">
+      <span class="val" id="t2Val">318</span>
+    </div>
+    <div class="slider-row">
+      <label>T3 (75µs)</label>
+      <input type="range" id="t3" min="50" max="120" step="1" value="75">
+      <span class="val" id="t3Val">75</span>
+    </div>
+    <button class="resetbtn" id="btnReset">標準値にリセット</button>
+  </div>
+
+  <div class="card">
+    <p class="section-title">RIAAカーブ表示</p>
+    <canvas id="curve" height="200"></canvas>
+  </div>
+
+  <p class="hint">標準RIAA逆カーブ（T1=3180µs / T2=318µs / T3=75µs）をWeb Audio APIのIIRフィルターでリアルタイム適用しています。エキサイタープロトタイプ検証用です。</p>
+</div>
+
+<script>
+let audioCtx, sourceNode, gainNode, iirNode, analyser, animId;
+let audioBuffer = null;
+let isPlaying = false;
+let pauseOffset = 0, startTime = 0;
+
+const dropzone = document.getElementById('dropzone');
+const fileinput = document.getElementById('fileinput');
+const btnPlay = document.getElementById('btnPlay');
+const btnStop = document.getElementById('btnStop');
+const status = document.getElementById('status');
+const fileinfo = document.getElementById('fileinfo');
+const filename = document.getElementById('filename');
+const timeEl = document.getElementById('time');
+const meterCanvas = document.getElementById('meter');
+const curveCanvas = document.getElementById('curve');
+
+function getParams() {
+  return {
+    gain: parseFloat(document.getElementById('gain').value),
+    t1: parseFloat(document.getElementById('t1').value) * 1e-6,
+    t2: parseFloat(document.getElementById('t2').value) * 1e-6,
+    t3: parseFloat(document.getElementById('t3').value) * 1e-6
+  };
+}
+
+function buildInverseRIAACoeffs(t1, t2, t3, sampleRate) {
+  const T = 1/sampleRate;
+  const k = 2/T;
+  const f1 = 1/t1, f2 = 1/t2, f3 = 1/t3;
+  const w1 = 2*Math.PI*f1, w2 = 2*Math.PI*f2, w3 = 2*Math.PI*f3;
+  const a1c = w1, b1c = w2, b2c = w3;
+  const b0 = (k+a1c)*(k+b2c);
+  const b1 = (-(k+a1c)*(k-b2c) - (k-a1c)*(k+b2c));
+  const b2 = (k-a1c)*(k-b2c);
+  const a0d = (k+b1c)*(k+b2c);
+  const a1d = (-(k+b1c)*(k-b2c) - (k-b1c)*(k+b2c));
+  const a2d = (k-b1c)*(k-b2c);
+  const norm = a0d;
+  return {
+    feedforward: [b0/norm, b1/norm, b2/norm],
+    feedback: [1, a1d/norm, a2d/norm]
+  };
+}
+
+function createIIR(ctx, t1, t2, t3) {
+  const c = buildInverseRIAACoeffs(t1, t2, t3, ctx.sampleRate);
+  return ctx.createIIRFilter(c.feedforward, c.feedback);
+}
+
+function setStatus(text, type) {
+  status.textContent = text;
+  status.className = 'badge' + (type ? ' '+type : '');
+}
+
+fileinput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) loadFile(file);
+});
+
+function loadFile(file) {
+  setStatus('読み込み中', '');
+  const reader = new FileReader();
+  reader.onload = async ev => {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    try {
+      audioBuffer = await audioCtx.decodeAudioData(ev.target.result);
+      filename.textContent = file.name;
+      fileinfo.style.display = 'flex';
+      dropzone.classList.add('loaded');
+      dropzone.innerHTML = '読み込み完了：タップで再選択';
+      btnPlay.disabled = false;
+      setStatus('準備完了', 'active');
+      drawCurve();
+    } catch(err) {
+      setStatus('デコードエラー', 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+btnPlay.addEventListener('click', () => {
+  if (isPlaying) {
+    pauseOffset += audioCtx.currentTime - startTime;
+    stopPlayback(false);
+    btnPlay.textContent = '再生';
+    setStatus('一時停止', '');
+  } else {
+    startPlayback();
+    btnPlay.textContent = '一時停止';
+    setStatus('再生中', 'active');
+  }
+});
+
+btnStop.addEventListener('click', () => {
+  pauseOffset = 0;
+  stopPlayback(true);
+  btnPlay.textContent = '再生';
+  setStatus('停止', '');
+  timeEl.textContent = '0:00';
+});
+
+function stopPlayback(full) {
+  if (sourceNode) { try { sourceNode.stop(); } catch(e){} sourceNode = null; }
+  if (animId) { cancelAnimationFrame(animId); animId = null; }
+  isPlaying = false;
+  if (full) btnStop.disabled = true;
+}
+
+function startPlayback() {
+  if (!audioCtx || !audioBuffer) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const p = getParams();
+  gainNode = audioCtx.createGain();
+  gainNode.gain.value = Math.pow(10, p.gain/20);
+  iirNode = createIIR(audioCtx, p.t1, p.t2, p.t3);
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  sourceNode = audioCtx.createBufferSource();
+  sourceNode.buffer = audioBuffer;
+  sourceNode.connect(iirNode);
+  iirNode.connect(gainNode);
+  gainNode.connect(analyser);
+  analyser.connect(audioCtx.destination);
+  sourceNode.start(0, pauseOffset % audioBuffer.duration);
+  startTime = audioCtx.currentTime;
+  isPlaying = true;
+  btnStop.disabled = false;
+  sourceNode.onended = () => {
+    if (isPlaying) {
+      isPlaying = false;
+      pauseOffset = 0;
+      btnPlay.textContent = '再生';
+      btnStop.disabled = true;
+      setStatus('完了', '');
+    }
+  };
+  drawMeter();
+}
+
+function drawMeter() {
+  const ctx = meterCanvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const w = meterCanvas.width = meterCanvas.offsetWidth * dpr;
+  const h = meterCanvas.height = 60 * dpr;
+  const data = new Uint8Array(analyser ? analyser.frequencyBinCount : 128);
+  function frame() {
+    if (!isPlaying) { ctx.clearRect(0,0,w,h); return; }
+    if (analyser) analyser.getByteTimeDomainData(data);
+    ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle = '#4a9eff';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath();
+    for (let i=0;i<data.length;i++) {
+      const x = (i/data.length)*w;
+      const y = ((data[i]-128)/128)*(h/2) + h/2;
+      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    const elapsed = (audioCtx.currentTime - startTime + pauseOffset) % (audioBuffer ? audioBuffer.duration : 1);
+    const m = Math.floor(elapsed/60), s = Math.floor(elapsed%60);
+    timeEl.textContent = m+':'+(s<10?'0':'')+s;
+    animId = requestAnimationFrame(frame);
+  }
+  frame();
+}
+
+function drawCurve() {
+  const p = getParams();
+  const canvas = curveCanvas;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = (canvas.offsetWidth || 320) * dpr;
+  canvas.height = 200 * dpr;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const pad = {l:46*dpr, r:14*dpr, t:12*dpr, b:24*dpr};
+  ctx.clearRect(0,0,W,H);
+  const freqs = [];
+  for (let i=0;i<300;i++) freqs.push(Math.pow(10, 1.3 + i*(3.3/299)));
+  function riaaGain(f, t1, t2, t3) {
+    const w = 2*Math.PI*f;
+    const num = Math.sqrt(1 + Math.pow(w*t2,2));
+    const den = Math.sqrt(1 + Math.pow(w*t1,2)) * Math.sqrt(1 + Math.pow(w*t3,2));
+    return num/den;
+  }
+  const gains = freqs.map(f => 20*Math.log10(1/riaaGain(f, p.t1, p.t2, p.t3)));
+  const minG = -30, maxG = 30;
+  function xPos(f) { return pad.l + (Math.log10(f)-1.3)/3.3*(W-pad.l-pad.r); }
+  function yPos(g) { return pad.t + (1-(g-minG)/(maxG-minG))*(H-pad.t-pad.b); }
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 1;
+  [20,50,100,200,500,1000,2000,5000,10000,20000].forEach(f => {
+    const x = xPos(f);
+    ctx.beginPath(); ctx.moveTo(x,pad.t); ctx.lineTo(x,H-pad.b); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = (10*dpr)+'px -apple-system';
+    ctx.textAlign = 'center';
+    ctx.fillText(f>=1000?f/1000+'k':f, x, H-6*dpr);
+  });
+  [-20,-10,0,10,20].forEach(g => {
+    const y = yPos(g);
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = (10*dpr)+'px -apple-system';
+    ctx.textAlign = 'right';
+    ctx.fillText(g+'dB', pad.l-5*dpr, y+4*dpr);
+  });
+  ctx.beginPath();
+  ctx.strokeStyle = '#4a9eff';
+  ctx.lineWidth = 2*dpr;
+  freqs.forEach((f,i) => {
+    const x = xPos(f), y = yPos(gains[i]);
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+}
+
+['t1','t2','t3'].forEach(id => {
+  document.getElementById(id).addEventListener('input', function() {
+    document.getElementById(id+'Val').textContent = this.value;
+    drawCurve();
+  });
+});
+document.getElementById('gain').addEventListener('input', function() {
+  document.getElementById('gainVal').textContent = this.value+' dB';
+  if (gainNode) gainNode.gain.value = Math.pow(10, parseFloat(this.value)/20);
+});
+document.getElementById('btnReset').addEventListener('click', () => {
+  ['t1','t2','t3'].forEach(id => {});
+  document.getElementById('t1').value = 3180;
+  document.getElementById('t2').value = 318;
+  document.getElementById('t3').value = 75;
+  document.getElementById('gain').value = 0;
+  document.getElementById('t1Val').textContent = '3180';
+  document.getElementById('t2Val').textContent = '318';
+  document.getElementById('t3Val').textContent = '75';
+  document.getElementById('gainVal').textContent = '0 dB';
+  drawCurve();
+});
+
+window.addEventListener('load', () => setTimeout(drawCurve, 200));
+window.addEventListener('resize', drawCurve);
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
