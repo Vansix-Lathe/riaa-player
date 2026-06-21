@@ -70,7 +70,7 @@ canvas { width: 100%; display: block; border-radius: 10px; background: rgba(255,
       タップして音声ファイルを選択<br>
       <span style="font-size:11px;">MP3 / WAV / FLAC / AAC</span>
     </div>
-    <input type="file" id="fileinput" accept="audio/*" style="display:none;">
+    <input type="file" id="fileinput" accept="audio/*,.mp3,.wav,.flac,.m4a,.aac,.ogg" style="display:none;">
     <div id="fileinfo" style="display:none;" class="row">
       <span id="filename">—</span>
     </div>
@@ -183,7 +183,16 @@ fileinput.addEventListener('change', e => {
 
 function loadFile(file) {
   setStatus('読み込み中', '');
+  if (!file.type.startsWith('audio') && !/\.(mp3|wav|flac|m4a|aac|ogg)$/i.test(file.name)) {
+    setStatus('非対応形式', 'error');
+    dropzone.innerHTML = '対応していないファイル形式です<br><span style="font-size:11px;">'+file.name+'</span>';
+    return;
+  }
   const reader = new FileReader();
+  reader.onerror = () => {
+    setStatus('読み込み失敗', 'error');
+    dropzone.innerHTML = 'ファイル読み込みに失敗しました<br><span style="font-size:11px;">タップして再試行</span>';
+  };
   reader.onload = async ev => {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     try {
@@ -197,6 +206,7 @@ function loadFile(file) {
       drawCurve();
     } catch(err) {
       setStatus('デコードエラー', 'error');
+      dropzone.innerHTML = '音声デコードに失敗しました<br><span style="font-size:11px;">'+(err.message||'unknown')+'</span>';
     }
   };
   reader.readAsArrayBuffer(file);

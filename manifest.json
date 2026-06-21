@@ -1,6 +1,6 @@
 {
   "name": "逆RIAAプレイヤー",
-  "short_name": "逆RIAA",
+  "short_name": "RIAA Player",
   "description": "Vansix エキサイタープロトタイプ用 逆RIAAプレイヤー",
   "start_url": "./index.html",
   "display": "standalone",

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'riaa-player-v1';
+const CACHE_NAME = 'riaa-player-v2';
 const urlsToCache = ['./index.html', './manifest.json', './icon.png'];
 
 self.addEventListener('install', event => {
