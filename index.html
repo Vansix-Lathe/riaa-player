@@ -367,6 +367,17 @@ window.addEventListener('load',async()=>{
   }catch(e){}
 });
 
+// Auto-pause when app returns from background
+// Without this, isPlaying stays true (showing "Pause") even though audio stopped
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible' && isPlaying){
+    pausePos=currentPos();
+    killNodes();
+    syncPlayBtn();
+    setSt(T[lang].paused,'');
+  }
+});
+
 if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{}));
 </script>
 </body>
