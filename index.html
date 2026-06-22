@@ -29,7 +29,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 .badge{font-size:11px;padding:3px 10px;border-radius:100px;background:rgba(255,255,255,0.08);color:var(--sub);}
 .badge.ok{background:rgba(62,207,142,0.15);color:var(--ok);}
 .badge.err{background:rgba(255,92,92,0.15);color:var(--danger);}
-.badge.warn{background:rgba(245,166,35,0.15);color:var(--warn);}
 #dropzone{border:1.5px dashed rgba(255,255,255,0.2);border-radius:14px;padding:2rem 1rem;text-align:center;color:var(--sub);font-size:14px;cursor:pointer;margin-bottom:10px;}
 #dropzone.loaded{border-color:var(--ok);color:var(--ok);border-style:solid;}
 .ctrl-row{display:flex;gap:8px;margin-bottom:12px;}
@@ -38,13 +37,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 .btn.primary{background:rgba(74,158,255,0.15);border-color:var(--accent);color:var(--accent);font-weight:600;}
 .btn:disabled{opacity:.35;pointer-events:none;}
 
-/* Seek */
-.seek-wrap{margin-bottom:10px;}
-.seek-track{width:100%;height:36px;display:flex;align-items:center;cursor:pointer;touch-action:none;user-select:none;}
-.seek-bg{flex:1;height:5px;background:rgba(255,255,255,0.12);border-radius:3px;position:relative;}
-.seek-fill{height:100%;background:var(--accent);border-radius:3px;width:0%;pointer-events:none;}
-.seek-knob{position:absolute;top:50%;width:22px;height:22px;border-radius:50%;background:var(--accent);transform:translate(-50%,-50%);left:0%;pointer-events:none;box-shadow:0 0 8px rgba(74,158,255,.5);}
-.time-row{display:flex;justify-content:space-between;font-size:11px;color:var(--sub);margin-top:2px;}
+/* ── Native range seek ── */
+.seek-wrap{margin-bottom:8px;}
+.seek-range{
+  -webkit-appearance:none;
+  width:100%;
+  height:4px;
+  border-radius:2px;
+  outline:none;
+  cursor:pointer;
+  display:block;
+  margin:14px 0; /* vertical margin = larger touch target */
+  background:rgba(255,255,255,0.12); /* overridden by JS gradient */
+}
+.seek-range::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:24px;height:24px;
+  border-radius:50%;
+  background:var(--accent);
+  box-shadow:0 0 8px rgba(74,158,255,.5);
+  cursor:pointer;
+}
+.seek-range:disabled{opacity:.35;pointer-events:none;}
+.time-row{display:flex;justify-content:space-between;font-size:11px;color:var(--sub);margin-top:-8px;}
 
 /* VU */
 .vu-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
@@ -52,7 +67,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 .vu-bg{flex:1;height:16px;background:rgba(255,255,255,0.05);border-radius:4px;overflow:hidden;position:relative;}
 .vu-fill{height:100%;width:0%;background:linear-gradient(to right,var(--ok) 0%,var(--ok) 70%,var(--warn) 70%,var(--warn) 88%,var(--danger) 88%);border-radius:4px;transition:width 0.03s;}
 .vu-peak{position:absolute;top:0;width:3px;height:100%;background:#fff;opacity:.8;left:0%;transition:left 0.06s;}
-.vu-clip{font-size:10px;font-weight:700;color:var(--danger);width:28px;text-align:center;opacity:0;transition:opacity 0.1s;}
+.vu-clip{font-size:10px;font-weight:700;color:var(--danger);width:28px;text-align:center;opacity:0;}
 .vu-clip.show{opacity:1;}
 .vu-scale{display:flex;justify-content:space-between;font-size:9px;color:var(--sub);padding:0 2px;margin-bottom:4px;}
 .clip-note{font-size:10px;color:var(--sub);margin-top:6px;line-height:1.5;}
@@ -98,18 +113,13 @@ canvas{width:100%;display:block;border-radius:10px;background:rgba(255,255,255,0
       <button class="btn" id="btnStop" disabled data-en="Stop" data-jp="停止">Stop</button>
     </div>
     <div class="seek-wrap">
-      <div class="seek-track" id="seekTrack">
-        <div class="seek-bg" id="seekBg">
-          <div class="seek-fill" id="seekFill"></div>
-          <div class="seek-knob" id="seekKnob"></div>
-        </div>
-      </div>
+      <input type="range" id="seekInput" class="seek-range" min="0" max="10000" value="0" disabled>
       <div class="time-row"><span id="tEl">0:00</span><span id="tDur">0:00</span></div>
     </div>
     <div class="vu-scale"><span>-∞</span><span>-18</span><span>-12</span><span>-6</span><span>-3</span><span>0</span></div>
     <div class="vu-row"><span class="vu-lbl">L</span><div class="vu-bg"><div class="vu-fill" id="vuL"></div><div class="vu-peak" id="pkL"></div></div><span class="vu-clip" id="clipL">CLIP</span></div>
     <div class="vu-row"><span class="vu-lbl">R</span><div class="vu-bg"><div class="vu-fill" id="vuR"></div><div class="vu-peak" id="pkR"></div></div><span class="vu-clip" id="clipR">CLIP</span></div>
-    <p class="clip-note" data-en="Signal level after inverse RIAA + gain. Keep below <b>orange zone (-6dB)</b> to avoid stylus overload." data-jp="逆RIAA＋ゲイン後の信号レベル。カッティング中は<b>オレンジ帯（-6dB）以下</b>に保つこと。">Signal level after inverse RIAA + gain. Keep below <b>orange zone (-6dB)</b> to avoid stylus overload.</p>
+    <p class="clip-note" data-en="Signal level after inverse RIAA + gain. Keep below <b>orange zone (-6dB)</b> to avoid stylus overload." data-jp="逆RIAA＋ゲイン後の信号レベル。<b>オレンジ帯（-6dB）以下</b>でカッティングすること。">Signal level after inverse RIAA + gain. Keep below <b>orange zone (-6dB)</b> to avoid stylus overload.</p>
   </div>
 
   <div class="card">
@@ -130,21 +140,21 @@ canvas{width:100%;display:block;border-radius:10px;background:rgba(255,255,255,0
     <canvas id="curve" height="200"></canvas>
   </div>
 
-  <p class="hint" data-en="Standard inverse RIAA (T1=3180µs / T2=318µs / T3=75µs) applied via Web Audio API IIR filter. Vansix exciter prototype validation tool." data-jp="標準RIAA逆カーブをWeb Audio API IIRフィルターでリアルタイム適用。Vansixエキサイタープロトタイプ検証用。">Standard inverse RIAA (T1=3180µs / T2=318µs / T3=75µs) applied via Web Audio API IIR filter. Vansix exciter prototype validation tool.</p>
+  <p class="hint" data-en="Standard inverse RIAA (T1=3180µs / T2=318µs / T3=75µs) applied via Web Audio API IIR filter. Vansix exciter prototype validation tool." data-jp="標準RIAA逆カーブをWeb Audio API IIRフィルターでリアルタイム適用。Vansixエキサイタープロトタイプ検証用。">Standard inverse RIAA (T1=3180µs / T2=318µs / T3=75µs) applied via Web Audio API IIR filter.</p>
 </div>
 
 <script>
-// ── i18n ──────────────────────────────────────────────
+// ── i18n ──────────────────────────────────────────────────────────
 let lang='en';
 const T={
   en:{play:'Play',pause:'Pause',stop:'Stop',standby:'Standby',loading:'Loading...',
       ready:'Ready',playing:'Playing',paused:'Paused',stopped:'Stopped',done:'Done',
-      suspended:'Tap Play to resume',loaded:'Loaded — tap to reselect',
-      decErr:'Decode error',readErr:'Read error'},
+      loaded:'Loaded — tap to reselect',decErr:'Decode error',readErr:'Read error',
+      recovering:'Recovering...'},
   jp:{play:'再生',pause:'一時停止',stop:'停止',standby:'待機中',loading:'読み込み中',
       ready:'準備完了',playing:'再生中',paused:'一時停止',stopped:'停止',done:'完了',
-      suspended:'再生を押して再開',loaded:'読み込み完了：タップで再選択',
-      decErr:'デコードエラー',readErr:'読み込み失敗'}
+      loaded:'読み込み完了：タップで再選択',decErr:'デコードエラー',readErr:'読み込み失敗',
+      recovering:'復元中...'}
 };
 function setLang(l){
   lang=l;
@@ -153,50 +163,29 @@ function setLang(l){
   document.querySelectorAll('[data-en]').forEach(el=>{
     const v=el.getAttribute('data-'+l);
     if(v===null) return;
-    if(v.includes('<')) el.innerHTML=v; else el.textContent=v;
+    if(v.includes('<b>')) el.innerHTML=v; else el.textContent=v;
   });
   syncPlayBtn();
+  document.getElementById('btnStop').textContent=T[l].stop;
+  document.getElementById('btnReset').textContent=l==='en'?'Reset to Standard Values':'標準値にリセット';
 }
 
-// ── AudioContext management ────────────────────────────
-let audioCtx=null, audioBuffer=null;
-
-function ensureCtx(){
-  if(!audioCtx || audioCtx.state==='closed'){
-    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  }
-}
-
-// Resume on visibility restore (iOS background→foreground)
-document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible' && audioCtx && audioCtx.state==='suspended'){
-    audioCtx.resume().catch(()=>{});
-  }
-});
-window.addEventListener('pageshow',()=>{
-  if(audioCtx && audioCtx.state==='suspended') audioCtx.resume().catch(()=>{});
-  syncPlayBtn();
-});
-// Unlock AudioContext on any touch (iOS quirk)
-document.addEventListener('touchstart',()=>{
-  if(audioCtx && audioCtx.state==='suspended') audioCtx.resume().catch(()=>{});
-},{once:false,passive:true});
-
-// ── Playback state ─────────────────────────────────────
-let srcNode=null, gainNode=null, iirNode=null;
-let splitter=null, anlL=null, anlR=null;
+// ── State ──────────────────────────────────────────────────────────
+let audioCtx=null;
+let audioBuffer=null;
+let fileBuffer=null;  // Original ArrayBuffer — survives AudioContext recreation
+let srcNode=null, gainNode=null, iirNode=null, splitter=null, anlL=null, anlR=null;
 let isPlaying=false;
-let startTime=0;   // audioCtx.currentTime when position==0
-let pausePos=0;    // saved position when paused/stopped
-let animId=null;
-let playGen=0;     // generation counter: prevents stale onended callbacks
+let startTime=0, pausePos=0, animId=null;
+let playGen=0;
+let isSeeking=false;
 
 function currentPos(){
-  if(!audioCtx||!isPlaying) return pausePos;
+  if(!isPlaying||!audioCtx) return pausePos;
   return audioCtx.currentTime - startTime;
 }
 function fmtTime(s){
-  s=Math.max(0,s);
+  s=Math.max(0,s||0);
   const m=Math.floor(s/60),sec=Math.floor(s%60);
   return m+':'+(sec<10?'0':'')+sec;
 }
@@ -205,29 +194,81 @@ function setSt(txt,cls){
   s.textContent=txt; s.className='badge'+(cls?' '+cls:'');
 }
 function syncPlayBtn(){
-  const btn=document.getElementById('btnPlay');
-  if(!audioBuffer){btn.textContent=T[lang].play;return;}
-  btn.textContent=isPlaying?T[lang].pause:T[lang].play;
+  document.getElementById('btnPlay').textContent=isPlaying?T[lang].pause:T[lang].play;
 }
 
-// ── File load ──────────────────────────────────────────
+// ── Seek range input (native — most reliable on iOS) ───────────────
+const seekInput=document.getElementById('seekInput');
+
+function seekGrad(ratio){
+  const p=(ratio*100).toFixed(2)+'%';
+  return 'linear-gradient(to right,#4a9eff 0%,#4a9eff '+p+',rgba(255,255,255,0.12) '+p+',rgba(255,255,255,0.12) 100%)';
+}
+function updateSeekUI(ratio){
+  if(isSeeking) return; // don't override user drag
+  ratio=Math.max(0,Math.min(1,ratio||0));
+  seekInput.value=Math.round(ratio*10000);
+  seekInput.style.background=seekGrad(ratio);
+  document.getElementById('tEl').textContent=fmtTime(ratio*(audioBuffer?audioBuffer.duration:0));
+}
+
+// input = fires during drag
+seekInput.addEventListener('input',function(){
+  if(!audioBuffer) return;
+  isSeeking=true;
+  const ratio=this.value/10000;
+  this.style.background=seekGrad(ratio);
+  document.getElementById('tEl').textContent=fmtTime(ratio*audioBuffer.duration);
+});
+// change = fires on release (touchend / mouseup)
+seekInput.addEventListener('change',function(){
+  if(!audioBuffer) return;
+  isSeeking=false;
+  const ratio=this.value/10000;
+  const newPos=ratio*audioBuffer.duration;
+  this.style.background=seekGrad(ratio);
+  if(isPlaying) doPlay(newPos);
+  else { pausePos=newPos; document.getElementById('tEl').textContent=fmtTime(newPos); }
+});
+
+// ── AudioContext — synchronous recovery pattern ────────────────────
+// iOS rule: AudioContext created inside a click handler starts in "running" state.
+// Instead of await-ing resume() (which breaks the gesture chain),
+// we close the suspended context and create a fresh one synchronously.
+function getOrCreateCtx(){
+  if(!audioCtx || audioCtx.state==='closed'){
+    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    return 'new';
+  }
+  if(audioCtx.state==='suspended'){
+    try{ audioCtx.close(); }catch(e){}
+    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    return 'recreated';
+  }
+  return 'ok';
+}
+
+// ── File load ──────────────────────────────────────────────────────
 document.getElementById('fi').addEventListener('change',e=>{
   if(e.target.files[0]) loadFile(e.target.files[0]);
 });
 function loadFile(file){
   setSt(T[lang].loading,'');
-  ensureCtx();
   const reader=new FileReader();
   reader.onerror=()=>setSt(T[lang].readErr,'err');
   reader.onload=async ev=>{
+    const ab=ev.target.result;
+    fileBuffer=ab.slice(); // keep copy for recovery
     try{
-      // Recreate ctx if needed (closed state after background kill)
-      if(audioCtx.state==='closed') ensureCtx();
-      audioBuffer=await audioCtx.decodeAudioData(ev.target.result);
+      if(!audioCtx||audioCtx.state==='closed') audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+      audioBuffer=await audioCtx.decodeAudioData(ab);
       const dz=document.getElementById('dropzone');
       dz.classList.add('loaded');
       dz.innerHTML='<div>'+T[lang].loaded+'</div><div style="font-size:11px;margin-top:4px;word-break:break-all;">'+file.name+'</div>';
       document.getElementById('btnPlay').disabled=false;
+      seekInput.disabled=false;
+      seekInput.value=0;
+      seekInput.style.background=seekGrad(0);
       document.getElementById('tDur').textContent=fmtTime(audioBuffer.duration);
       pausePos=0; updateSeekUI(0);
       setSt(T[lang].ready,'ok');
@@ -239,23 +280,37 @@ function loadFile(file){
   reader.readAsArrayBuffer(file);
 }
 
-// ── Play / Pause / Stop ────────────────────────────────
-document.getElementById('btnPlay').addEventListener('click',async()=>{
-  // MUST resume AudioContext synchronously inside user-gesture handler (iOS requirement)
-  ensureCtx();
-  if(audioCtx.state==='suspended'){
-    try{ await audioCtx.resume(); }catch(e){}
+// ── Play / Pause / Stop ────────────────────────────────────────────
+document.getElementById('btnPlay').addEventListener('click',function(){
+  // getOrCreateCtx() MUST be called synchronously here (iOS gesture chain requirement)
+  const ctxState=getOrCreateCtx();
+
+  if(!audioBuffer){
+    // audioBuffer lost (page was fully killed + restarted) — re-decode from fileBuffer
+    if(fileBuffer){
+      setSt(T[lang].recovering,'');
+      audioCtx.decodeAudioData(fileBuffer.slice()).then(buf=>{
+        audioBuffer=buf;
+        document.getElementById('tDur').textContent=fmtTime(audioBuffer.duration);
+        document.getElementById('btnPlay').disabled=false;
+        seekInput.disabled=false;
+        doPlay(pausePos);
+      }).catch(()=>setSt(T[lang].decErr,'err'));
+    }
+    return;
   }
-  if(isPlaying){ doPause(); } else { doPlay(pausePos); }
+
+  if(isPlaying) doPause(); else doPlay(pausePos);
 });
-document.getElementById('btnStop').addEventListener('click',()=>{
+
+document.getElementById('btnStop').addEventListener('click',function(){
   doStop();
 });
 
 function doPlay(fromPos){
   if(!audioCtx||!audioBuffer) return;
   killNodes();
-  const gen=++playGen; // new generation
+  const gen=++playGen;
   const p=getParams();
   gainNode=audioCtx.createGain();
   gainNode.gain.value=Math.pow(10,p.gain/20);
@@ -272,7 +327,7 @@ function doPlay(fromPos){
   splitter.connect(anlL,0); splitter.connect(anlR,1);
   anlL.connect(audioCtx.destination);
   anlR.connect(audioCtx.destination);
-  const safePos=Math.min(Math.max(fromPos,0),audioBuffer.duration-0.05);
+  const safePos=Math.min(Math.max(fromPos||0,0),audioBuffer.duration-0.1);
   srcNode.start(0,safePos);
   startTime=audioCtx.currentTime-safePos;
   isPlaying=true;
@@ -280,9 +335,9 @@ function doPlay(fromPos){
   document.getElementById('btnStop').disabled=false;
   setSt(T[lang].playing,'ok');
   srcNode.onended=()=>{
-    if(gen!==playGen) return; // stale callback — seek happened, ignore
+    if(gen!==playGen) return; // stale: seek/stop happened, ignore
     if(!isPlaying) return;
-    // Natural end of track
+    // Natural end
     isPlaying=false; pausePos=0;
     syncPlayBtn();
     document.getElementById('btnStop').disabled=true;
@@ -316,67 +371,7 @@ function killNodes(){
   isPlaying=false;
 }
 
-// ── Seek bar ───────────────────────────────────────────
-// Key design: store seekRatio continuously during drag.
-// On touchend, use stored seekRatio (NOT changedTouches recalc) for reliability.
-let seeking=false, seekRatio=0;
-
-function calcRatioFromX(clientX){
-  const rect=document.getElementById('seekBg').getBoundingClientRect();
-  return Math.max(0,Math.min(1,(clientX-rect.left)/rect.width));
-}
-function updateSeekUI(r){
-  const pct=(r*100).toFixed(2)+'%';
-  document.getElementById('seekFill').style.width=pct;
-  document.getElementById('seekKnob').style.left=pct;
-  if(audioBuffer) document.getElementById('tEl').textContent=fmtTime(r*audioBuffer.duration);
-}
-function commitSeek(){
-  if(!audioBuffer) return;
-  const newPos=seekRatio*audioBuffer.duration;
-  if(isPlaying){ doPlay(newPos); }
-  else{ pausePos=newPos; updateSeekUI(seekRatio); }
-}
-
-const seekTrack=document.getElementById('seekTrack');
-seekTrack.addEventListener('touchstart',e=>{
-  if(!audioBuffer) return;
-  seeking=true;
-  seekRatio=calcRatioFromX(e.touches[0].clientX);
-  updateSeekUI(seekRatio);
-},{passive:true});
-seekTrack.addEventListener('touchmove',e=>{
-  if(!seeking||!audioBuffer) return;
-  seekRatio=calcRatioFromX(e.touches[0].clientX); // always use touches[0] during move
-  updateSeekUI(seekRatio);
-},{passive:true});
-seekTrack.addEventListener('touchend',e=>{
-  if(!seeking||!audioBuffer){seeking=false;return;}
-  seeking=false;
-  // Do NOT recalculate from changedTouches — use last stored seekRatio
-  commitSeek();
-});
-seekTrack.addEventListener('touchcancel',()=>{seeking=false;});
-
-// Mouse (PC)
-seekTrack.addEventListener('mousedown',e=>{
-  if(!audioBuffer) return;
-  seeking=true;
-  seekRatio=calcRatioFromX(e.clientX);
-  updateSeekUI(seekRatio);
-});
-window.addEventListener('mousemove',e=>{
-  if(!seeking||!audioBuffer) return;
-  seekRatio=calcRatioFromX(e.clientX);
-  updateSeekUI(seekRatio);
-});
-window.addEventListener('mouseup',e=>{
-  if(!seeking||!audioBuffer){seeking=false;return;}
-  seeking=false;
-  commitSeek();
-});
-
-// ── VU meter ───────────────────────────────────────────
+// ── VU meter ──────────────────────────────────────────────────────
 let pkLv=0,pkRv=0,pkLt=0,pkRt=0,clipLt=0,clipRt=0;
 const PEAK_HOLD=2000,CLIP_HOLD=1500;
 function resetVU(){
@@ -386,14 +381,12 @@ function resetVU(){
   document.getElementById('pkR').style.left='0%';
   document.getElementById('clipL').classList.remove('show');
   document.getElementById('clipR').classList.remove('show');
-  pkLv=0;pkRv=0;
+  pkLv=0; pkRv=0;
 }
 function getPeak(anl){
   const d=new Float32Array(anl.fftSize);
   anl.getFloatTimeDomainData(d);
-  let max=0;
-  for(let i=0;i<d.length;i++){const a=Math.abs(d[i]);if(a>max)max=a;}
-  return max;
+  let mx=0; for(let i=0;i<d.length;i++){const a=Math.abs(d[i]);if(a>mx)mx=a;} return mx;
 }
 function linToPct(v){
   if(v<=0) return 0;
@@ -407,8 +400,7 @@ function updateVU(){
   const pL=linToPct(vL),pR=linToPct(vR);
   document.getElementById('vuL').style.width=pL+'%';
   document.getElementById('vuR').style.width=pR+'%';
-  if(pL>pkLv){pkLv=pL;pkLt=now;}
-  if(pR>pkRv){pkRv=pR;pkRt=now;}
+  if(pL>pkLv){pkLv=pL;pkLt=now;} if(pR>pkRv){pkRv=pR;pkRt=now;}
   if(now-pkLt>PEAK_HOLD) pkLv=Math.max(0,pkLv-1.5);
   if(now-pkRt>PEAK_HOLD) pkRv=Math.max(0,pkRv-1.5);
   document.getElementById('pkL').style.left=pkLv+'%';
@@ -419,18 +411,17 @@ function updateVU(){
   else if(now-clipRt>CLIP_HOLD) document.getElementById('clipR').classList.remove('show');
 }
 
-// ── Main loop ──────────────────────────────────────────
+// ── Main loop ─────────────────────────────────────────────────────
 function loop(){
   if(!isPlaying) return;
-  if(!seeking && audioBuffer){
-    const pos=Math.min(currentPos(),audioBuffer.duration);
-    updateSeekUI(pos/audioBuffer.duration);
+  if(!isSeeking && audioBuffer){
+    updateSeekUI(Math.min(currentPos()/audioBuffer.duration,1));
   }
   updateVU();
   animId=requestAnimationFrame(loop);
 }
 
-// ── RIAA curve ─────────────────────────────────────────
+// ── RIAA curve ────────────────────────────────────────────────────
 function getParams(){
   return{
     gain:parseFloat(document.getElementById('gain').value),
@@ -477,10 +468,10 @@ function drawCurve(){
   ctx.stroke();
 }
 
-// ── Sliders ────────────────────────────────────────────
+// ── Sliders ───────────────────────────────────────────────────────
 ['t1','t2','t3'].forEach(id=>{
   document.getElementById(id).addEventListener('input',function(){
-    document.getElementById(id+'Val').textContent=this.value;drawCurve();
+    document.getElementById(id+'Val').textContent=this.value; drawCurve();
   });
 });
 document.getElementById('gain').addEventListener('input',function(){
