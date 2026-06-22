@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>逆RIAAプレイヤー</title>
+<title>Inverse RIAA Player</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="逆RIAA">
+<meta name="apple-mobile-web-app-title" content="RIAA Player">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="manifest" href="manifest.json">
 <style>
@@ -16,82 +16,127 @@
   --card: #1a1d24;
   --border: rgba(255,255,255,0.1);
   --text: #f0f0f0;
-  --text-secondary: #9a9ea8;
+  --sub: #9a9ea8;
   --accent: #4a9eff;
   --success: #3ecf8e;
   --danger: #ff5c5c;
+  --warn: #f5a623;
 }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-}
+body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
 .app { max-width: 480px; margin: 0 auto; padding: 1.25rem 1rem 3rem; }
-h1 { font-size: 18px; font-weight: 600; margin-bottom: 1.25rem; text-align: center; color: var(--text); }
+.topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+.app-title { font-size: 17px; font-weight: 700; letter-spacing: 0.02em; }
+.lang-toggle { display: flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.lang-btn { padding: 5px 12px; font-size: 12px; font-weight: 600; background: transparent; border: none; color: var(--sub); cursor: pointer; }
+.lang-btn.active { background: var(--accent); color: #fff; }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1rem 1.1rem; margin-bottom: 12px; }
-.label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
-.row { display: flex; align-items: center; gap: 10px; }
-.badge { font-size: 11px; padding: 3px 10px; border-radius: 100px; background: rgba(255,255,255,0.08); color: var(--text-secondary); }
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.section-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.badge { font-size: 11px; padding: 3px 10px; border-radius: 100px; background: rgba(255,255,255,0.08); color: var(--sub); }
 .badge.active { background: rgba(62,207,142,0.15); color: var(--success); }
 .badge.error { background: rgba(255,92,92,0.15); color: var(--danger); }
-#dropzone { border: 1.5px dashed rgba(255,255,255,0.2); border-radius: 14px; padding: 2.2rem 1rem; text-align: center; color: var(--text-secondary); font-size: 14px; cursor: pointer; margin-bottom: 12px; }
+#dropzone { border: 1.5px dashed rgba(255,255,255,0.2); border-radius: 14px; padding: 2rem 1rem; text-align: center; color: var(--sub); font-size: 14px; cursor: pointer; margin-bottom: 10px; transition: border-color 0.2s; }
 #dropzone.loaded { border-color: var(--success); color: var(--success); border-style: solid; }
-.ctrl-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.btn { background: rgba(255,255,255,0.06); border: 1px solid var(--border); border-radius: 10px; padding: 10px 18px; font-size: 14px; color: var(--text); cursor: pointer; flex: 1; }
+#fileinfo { display: none; font-size: 12px; color: var(--sub); word-break: break-all; margin-top: 4px; }
+
+/* Controls */
+.ctrl-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.btn { background: rgba(255,255,255,0.06); border: 1px solid var(--border); border-radius: 10px; padding: 10px 0; font-size: 14px; color: var(--text); cursor: pointer; flex: 1; transition: background 0.15s; }
 .btn:active { transform: scale(0.97); }
 .btn.primary { background: rgba(74,158,255,0.15); border-color: var(--accent); color: var(--accent); font-weight: 600; }
-.btn:disabled { opacity: 0.4; }
+.btn:disabled { opacity: 0.35; pointer-events: none; }
+
+/* Seek bar */
+.seek-area { margin-bottom: 10px; }
+.seek-bar-wrap { position: relative; height: 28px; display: flex; align-items: center; cursor: pointer; }
+.seek-track { width: 100%; height: 4px; background: rgba(255,255,255,0.12); border-radius: 2px; position: relative; overflow: hidden; }
+.seek-fill { height: 100%; background: var(--accent); border-radius: 2px; width: 0%; transition: width 0.1s linear; pointer-events: none; }
+.seek-thumb { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 18px; height: 18px; border-radius: 50%; background: var(--accent); left: 0%; pointer-events: none; box-shadow: 0 0 6px rgba(74,158,255,0.5); }
+.time-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--sub); margin-top: 4px; }
+
+/* VU Meter */
+.vu-wrap { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 4px; }
+.vu-ch { flex: 1; }
+.vu-label { font-size: 10px; color: var(--sub); text-align: center; margin-bottom: 4px; }
+.vu-bar-bg { height: 14px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; position: relative; }
+.vu-bar { height: 100%; width: 0%; border-radius: 3px; background: linear-gradient(to right, var(--success) 0%, var(--success) 60%, var(--warn) 60%, var(--warn) 80%, var(--danger) 80%); transition: width 0.04s; }
+.vu-peak-line { position: absolute; top: 0; width: 2px; height: 100%; background: rgba(255,255,255,0.6); left: 0%; transition: left 0.08s; }
+.vu-scale { display: flex; justify-content: space-between; font-size: 9px; color: var(--sub); margin-top: 3px; padding: 0 1px; }
+
+/* Sliders */
 .slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.slider-row label { font-size: 12px; color: var(--text-secondary); width: 76px; flex-shrink: 0; }
+.slider-row label { font-size: 12px; color: var(--sub); width: 80px; flex-shrink: 0; }
 .slider-row input[type=range] { flex: 1; -webkit-appearance: none; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.15); }
 .slider-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); }
-.slider-row .val { font-size: 12px; font-weight: 600; min-width: 44px; text-align: right; color: var(--text); }
-.section-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 12px; }
+.slider-row .val { font-size: 12px; font-weight: 600; min-width: 48px; text-align: right; }
+.resetbtn { width: 100%; background: transparent; border: 1px solid var(--border); border-radius: 10px; padding: 8px; font-size: 12px; color: var(--sub); cursor: pointer; margin-top: 4px; }
 canvas { width: 100%; display: block; border-radius: 10px; background: rgba(255,255,255,0.03); }
-#filename { font-size: 13px; font-weight: 500; color: var(--text); word-break: break-all; }
-#status { font-size: 11px; }
-.icon { width: 26px; height: 26px; display: inline-block; vertical-align: middle; }
-.resetbtn { width: 100%; background: transparent; border: 1px solid var(--border); border-radius: 10px; padding: 8px; font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
-.hint { font-size: 11px; color: var(--text-secondary); margin-top: 8px; line-height: 1.5; }
+.hint { font-size: 11px; color: var(--sub); margin-top: 8px; line-height: 1.5; }
 </style>
 </head>
 <body>
 <div class="app">
-  <h1>逆RIAA プレイヤー</h1>
+  <div class="topbar">
+    <span class="app-title">Inverse RIAA Player</span>
+    <div class="lang-toggle">
+      <button class="lang-btn active" id="btnEN" onclick="setLang('en')">EN</button>
+      <button class="lang-btn" id="btnJP" onclick="setLang('jp')">JP</button>
+    </div>
+  </div>
 
+  <!-- Source -->
   <div class="card">
-    <div class="row" style="margin-bottom:10px;">
-      <span class="section-title" style="margin:0;">音源</span>
-      <span id="status" class="badge" style="margin-left:auto;">待機中</span>
+    <div class="card-header">
+      <span class="section-title" data-en="Source" data-jp="音源">Source</span>
+      <span id="status" class="badge" data-en-waiting="Standby" data-jp-waiting="待機中">Standby</span>
     </div>
     <div id="dropzone" onclick="document.getElementById('fileinput').click()">
-      タップして音声ファイルを選択<br>
+      <span data-en="Tap to select audio file" data-jp="タップして音声ファイルを選択">Tap to select audio file</span><br>
       <span style="font-size:11px;">MP3 / WAV / FLAC / AAC</span>
     </div>
     <input type="file" id="fileinput" accept="audio/*,.mp3,.wav,.flac,.m4a,.aac,.ogg" style="display:none;">
-    <div id="fileinfo" style="display:none;" class="row">
-      <span id="filename">—</span>
-    </div>
+    <div id="fileinfo"></div>
   </div>
 
+  <!-- Player -->
   <div class="card">
-    <p class="section-title">再生コントロール</p>
+    <p class="section-title" data-en="Playback" data-jp="再生コントロール" style="margin-bottom:10px;">Playback</p>
     <div class="ctrl-row">
-      <button class="btn primary" id="btnPlay" disabled>再生</button>
-      <button class="btn" id="btnStop" disabled>停止</button>
+      <button class="btn primary" id="btnPlay" disabled data-en="Play" data-jp="再生">Play</button>
+      <button class="btn" id="btnStop" disabled data-en="Stop" data-jp="停止">Stop</button>
     </div>
-    <div class="row" style="justify-content:flex-end; margin-bottom:8px;">
-      <span id="time" style="font-size:12px;color:var(--text-secondary);">0:00</span>
+    <!-- Seek bar -->
+    <div class="seek-area">
+      <div class="seek-bar-wrap" id="seekBar">
+        <div class="seek-track">
+          <div class="seek-fill" id="seekFill"></div>
+        </div>
+        <div class="seek-thumb" id="seekThumb"></div>
+      </div>
+      <div class="time-row">
+        <span id="timeElapsed">0:00</span>
+        <span id="timeDuration">0:00</span>
+      </div>
     </div>
-    <canvas id="meter" height="60"></canvas>
+    <!-- VU Meter -->
+    <div class="vu-wrap">
+      <div class="vu-ch">
+        <div class="vu-label">L</div>
+        <div class="vu-bar-bg"><div class="vu-bar" id="vuL"></div><div class="vu-peak-line" id="peakL"></div></div>
+      </div>
+      <div class="vu-ch">
+        <div class="vu-label">R</div>
+        <div class="vu-bar-bg"><div class="vu-bar" id="vuR"></div><div class="vu-peak-line" id="peakR"></div></div>
+      </div>
+    </div>
+    <div class="vu-scale"><span>-∞</span><span>-20</span><span>-12</span><span>-6</span><span>0 dB</span></div>
   </div>
 
+  <!-- RIAA Params -->
   <div class="card">
-    <p class="section-title">逆RIAAパラメータ</p>
+    <p class="section-title" data-en="Inverse RIAA Parameters" data-jp="逆RIAAパラメータ" style="margin-bottom:12px;">Inverse RIAA Parameters</p>
     <div class="slider-row">
-      <label>ゲイン</label>
+      <label data-en="Gain" data-jp="ゲイン">Gain</label>
       <input type="range" id="gain" min="-20" max="20" step="1" value="0">
       <span class="val" id="gainVal">0 dB</span>
     </div>
@@ -110,275 +155,327 @@ canvas { width: 100%; display: block; border-radius: 10px; background: rgba(255,
       <input type="range" id="t3" min="50" max="120" step="1" value="75">
       <span class="val" id="t3Val">75</span>
     </div>
-    <button class="resetbtn" id="btnReset">標準値にリセット</button>
+    <button class="resetbtn" id="btnReset" data-en="Reset to Standard Values" data-jp="標準値にリセット">Reset to Standard Values</button>
   </div>
 
+  <!-- Curve -->
   <div class="card">
-    <p class="section-title">RIAAカーブ表示</p>
+    <p class="section-title" data-en="RIAA Curve" data-jp="RIAAカーブ表示" style="margin-bottom:8px;">RIAA Curve</p>
     <canvas id="curve" height="200"></canvas>
   </div>
 
-  <p class="hint">標準RIAA逆カーブ（T1=3180µs / T2=318µs / T3=75µs）をWeb Audio APIのIIRフィルターでリアルタイム適用しています。エキサイタープロトタイプ検証用です。</p>
+  <p class="hint" data-en="Standard inverse RIAA curve (T1=3180µs / T2=318µs / T3=75µs) applied in real-time via Web Audio API IIR filter. For Vansix exciter prototype validation." data-jp="標準RIAA逆カーブをWeb Audio API IIRフィルターでリアルタイム適用。Vansixエキサイタープロトタイプ検証用。">Standard inverse RIAA curve applied in real-time via Web Audio API IIR filter. For Vansix exciter prototype validation.</p>
 </div>
 
 <script>
-let audioCtx, sourceNode, gainNode, iirNode, analyser, animId;
+// ─── i18n ───────────────────────────────────────────
+let lang = 'en';
+const i18n = {
+  en: {
+    play: 'Play', pause: 'Pause', stop: 'Stop',
+    standby: 'Standby', loading: 'Loading...', ready: 'Ready',
+    playing: 'Playing', paused: 'Paused', stopped: 'Stopped', done: 'Done',
+    dropzone: 'Tap to select audio file',
+    loaded: 'Loaded — Tap to reselect',
+    decodeErr: 'Decode error', readErr: 'Read error', fmtErr: 'Unsupported format',
+    reset: 'Reset to Standard Values', gain: 'Gain'
+  },
+  jp: {
+    play: '再生', pause: '一時停止', stop: '停止',
+    standby: '待機中', loading: '読み込み中', ready: '準備完了',
+    playing: '再生中', paused: '一時停止', stopped: '停止', done: '完了',
+    dropzone: 'タップして音声ファイルを選択',
+    loaded: '読み込み完了：タップで再選択',
+    decodeErr: 'デコードエラー', readErr: '読み込み失敗', fmtErr: '非対応形式',
+    reset: '標準値にリセット', gain: 'ゲイン'
+  }
+};
+function setLang(l) {
+  lang = l;
+  document.getElementById('btnEN').classList.toggle('active', l==='en');
+  document.getElementById('btnJP').classList.toggle('active', l==='jp');
+  document.querySelectorAll('[data-en]').forEach(el => {
+    el.textContent = l==='en' ? el.dataset.en : el.dataset.jp;
+  });
+  const dz = document.getElementById('dropzone');
+  if (!dz.classList.contains('loaded')) dz.querySelector('span[data-en]').textContent = i18n[l].dropzone;
+  document.getElementById('btnPlay').textContent = isPlaying ? i18n[l].pause : i18n[l].play;
+  document.getElementById('btnStop').textContent = i18n[l].stop;
+  document.getElementById('btnReset').textContent = i18n[l].reset;
+}
+
+// ─── Audio Engine ────────────────────────────────────
+let audioCtx, sourceNode, gainNode, iirNode, splitter, analyserL, analyserR, animId;
 let audioBuffer = null;
 let isPlaying = false;
 let pauseOffset = 0, startTime = 0;
-
-const dropzone = document.getElementById('dropzone');
-const fileinput = document.getElementById('fileinput');
-const btnPlay = document.getElementById('btnPlay');
-const btnStop = document.getElementById('btnStop');
-const status = document.getElementById('status');
-const fileinfo = document.getElementById('fileinfo');
-const filename = document.getElementById('filename');
-const timeEl = document.getElementById('time');
-const meterCanvas = document.getElementById('meter');
-const curveCanvas = document.getElementById('curve');
+let isSeeking = false;
+let peakLval = 0, peakRval = 0, peakLTimer, peakRTimer;
 
 function getParams() {
   return {
     gain: parseFloat(document.getElementById('gain').value),
-    t1: parseFloat(document.getElementById('t1').value) * 1e-6,
-    t2: parseFloat(document.getElementById('t2').value) * 1e-6,
-    t3: parseFloat(document.getElementById('t3').value) * 1e-6
+    t1: parseFloat(document.getElementById('t1').value)*1e-6,
+    t2: parseFloat(document.getElementById('t2').value)*1e-6,
+    t3: parseFloat(document.getElementById('t3').value)*1e-6
   };
 }
 
-function buildInverseRIAACoeffs(t1, t2, t3, sampleRate) {
-  const T = 1/sampleRate;
-  const k = 2/T;
-  const f1 = 1/t1, f2 = 1/t2, f3 = 1/t3;
-  const w1 = 2*Math.PI*f1, w2 = 2*Math.PI*f2, w3 = 2*Math.PI*f3;
-  const a1c = w1, b1c = w2, b2c = w3;
-  const b0 = (k+a1c)*(k+b2c);
-  const b1 = (-(k+a1c)*(k-b2c) - (k-a1c)*(k+b2c));
-  const b2 = (k-a1c)*(k-b2c);
-  const a0d = (k+b1c)*(k+b2c);
-  const a1d = (-(k+b1c)*(k-b2c) - (k-b1c)*(k+b2c));
-  const a2d = (k-b1c)*(k-b2c);
-  const norm = a0d;
-  return {
-    feedforward: [b0/norm, b1/norm, b2/norm],
-    feedback: [1, a1d/norm, a2d/norm]
-  };
-}
-
-function createIIR(ctx, t1, t2, t3) {
-  const c = buildInverseRIAACoeffs(t1, t2, t3, ctx.sampleRate);
-  return ctx.createIIRFilter(c.feedforward, c.feedback);
+function buildCoeffs(t1, t2, t3, sr) {
+  const k = 2*sr;
+  const w1=2*Math.PI/t1, w2=2*Math.PI/t2, w3=2*Math.PI/t3;
+  const b0=(k+w1)*(k+w3), b1=(-(k+w1)*(k-w3)-(k-w1)*(k+w3)), b2=(k-w1)*(k-w3);
+  const a0=(k+w2)*(k+w3), a1=(-(k+w2)*(k-w3)-(k-w2)*(k+w3)), a2=(k-w2)*(k-w3);
+  return { ff:[b0/a0,b1/a0,b2/a0], fb:[1,a1/a0,a2/a0] };
 }
 
 function setStatus(text, type) {
-  status.textContent = text;
-  status.className = 'badge' + (type ? ' '+type : '');
+  const s = document.getElementById('status');
+  s.textContent = text;
+  s.className = 'badge'+(type?' '+type:'');
 }
 
-fileinput.addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (file) loadFile(file);
+// File load
+document.getElementById('fileinput').addEventListener('change', e => {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
 });
 
 function loadFile(file) {
-  setStatus('読み込み中', '');
-  if (!file.type.startsWith('audio') && !/\.(mp3|wav|flac|m4a|aac|ogg)$/i.test(file.name)) {
-    setStatus('非対応形式', 'error');
-    dropzone.innerHTML = '対応していないファイル形式です<br><span style="font-size:11px;">'+file.name+'</span>';
-    return;
-  }
+  setStatus(i18n[lang].loading, '');
   const reader = new FileReader();
-  reader.onerror = () => {
-    setStatus('読み込み失敗', 'error');
-    dropzone.innerHTML = 'ファイル読み込みに失敗しました<br><span style="font-size:11px;">タップして再試行</span>';
-  };
+  reader.onerror = () => setStatus(i18n[lang].readErr, 'error');
   reader.onload = async ev => {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
     try {
       audioBuffer = await audioCtx.decodeAudioData(ev.target.result);
-      filename.textContent = file.name;
-      fileinfo.style.display = 'flex';
-      dropzone.classList.add('loaded');
-      dropzone.innerHTML = '読み込み完了：タップで再選択';
-      btnPlay.disabled = false;
-      setStatus('準備完了', 'active');
+      const dz = document.getElementById('dropzone');
+      dz.classList.add('loaded');
+      dz.innerHTML = '<span>'+i18n[lang].loaded+'</span><br><span style="font-size:11px;">'+file.name+'</span>';
+      document.getElementById('fileinfo').style.display = 'block';
+      document.getElementById('btnPlay').disabled = false;
+      setStatus(i18n[lang].ready, 'active');
+      const dur = audioBuffer.duration;
+      document.getElementById('timeDuration').textContent = fmtTime(dur);
       drawCurve();
     } catch(err) {
-      setStatus('デコードエラー', 'error');
-      dropzone.innerHTML = '音声デコードに失敗しました<br><span style="font-size:11px;">'+(err.message||'unknown')+'</span>';
+      setStatus(i18n[lang].decodeErr+': '+(err.message||''), 'error');
     }
   };
   reader.readAsArrayBuffer(file);
 }
 
-btnPlay.addEventListener('click', () => {
-  if (isPlaying) {
-    pauseOffset += audioCtx.currentTime - startTime;
-    stopPlayback(false);
-    btnPlay.textContent = '再生';
-    setStatus('一時停止', '');
-  } else {
-    startPlayback();
-    btnPlay.textContent = '一時停止';
-    setStatus('再生中', 'active');
-  }
+// ─── Playback ───────────────────────────────────────
+document.getElementById('btnPlay').addEventListener('click', () => {
+  if (isPlaying) { pauseAt(getCurrentPos()); } else { play(pauseOffset); }
+});
+document.getElementById('btnStop').addEventListener('click', () => {
+  pauseOffset = 0; stopNodes(); updateSeek(0);
+  document.getElementById('btnPlay').textContent = i18n[lang].play;
+  document.getElementById('btnStop').disabled = true;
+  setStatus(i18n[lang].stopped, '');
+  document.getElementById('timeElapsed').textContent = '0:00';
 });
 
-btnStop.addEventListener('click', () => {
-  pauseOffset = 0;
-  stopPlayback(true);
-  btnPlay.textContent = '再生';
-  setStatus('停止', '');
-  timeEl.textContent = '0:00';
-});
+function getCurrentPos() {
+  return pauseOffset + (audioCtx.currentTime - startTime);
+}
 
-function stopPlayback(full) {
+function pauseAt(pos) {
+  pauseOffset = Math.min(pos, audioBuffer.duration);
+  stopNodes();
+  document.getElementById('btnPlay').textContent = i18n[lang].play;
+  setStatus(i18n[lang].paused, '');
+}
+
+function stopNodes() {
   if (sourceNode) { try { sourceNode.stop(); } catch(e){} sourceNode = null; }
   if (animId) { cancelAnimationFrame(animId); animId = null; }
   isPlaying = false;
-  if (full) btnStop.disabled = true;
+  resetVU();
 }
 
-function startPlayback() {
-  if (!audioCtx || !audioBuffer) return;
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+function play(offset) {
+  if (!audioCtx||!audioBuffer) return;
+  if (audioCtx.state==='suspended') audioCtx.resume();
+  stopNodes();
   const p = getParams();
   gainNode = audioCtx.createGain();
   gainNode.gain.value = Math.pow(10, p.gain/20);
-  iirNode = createIIR(audioCtx, p.t1, p.t2, p.t3);
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 256;
+  const c = buildCoeffs(p.t1, p.t2, p.t3, audioCtx.sampleRate);
+  iirNode = audioCtx.createIIRFilter(c.ff, c.fb);
+  splitter = audioCtx.createChannelSplitter(2);
+  analyserL = audioCtx.createAnalyser(); analyserL.fftSize=1024;
+  analyserR = audioCtx.createAnalyser(); analyserR.fftSize=1024;
   sourceNode = audioCtx.createBufferSource();
   sourceNode.buffer = audioBuffer;
   sourceNode.connect(iirNode);
   iirNode.connect(gainNode);
-  gainNode.connect(analyser);
-  analyser.connect(audioCtx.destination);
-  sourceNode.start(0, pauseOffset % audioBuffer.duration);
-  startTime = audioCtx.currentTime;
+  gainNode.connect(splitter);
+  splitter.connect(analyserL,0); splitter.connect(analyserR,1);
+  analyserL.connect(audioCtx.destination);
+  analyserR.connect(audioCtx.destination);
+  const safeOffset = Math.min(Math.max(offset,0), audioBuffer.duration-0.01);
+  sourceNode.start(0, safeOffset);
+  startTime = audioCtx.currentTime - safeOffset;
+  pauseOffset = safeOffset;
   isPlaying = true;
-  btnStop.disabled = false;
+  document.getElementById('btnPlay').textContent = i18n[lang].pause;
+  document.getElementById('btnStop').disabled = false;
+  setStatus(i18n[lang].playing, 'active');
   sourceNode.onended = () => {
-    if (isPlaying) {
-      isPlaying = false;
-      pauseOffset = 0;
-      btnPlay.textContent = '再生';
-      btnStop.disabled = true;
-      setStatus('完了', '');
+    if (isPlaying && getCurrentPos() >= audioBuffer.duration - 0.1) {
+      isPlaying = false; pauseOffset = 0;
+      document.getElementById('btnPlay').textContent = i18n[lang].play;
+      document.getElementById('btnStop').disabled = true;
+      setStatus(i18n[lang].done, '');
+      updateSeek(0); resetVU();
     }
   };
-  drawMeter();
+  drawLoop();
 }
 
-function drawMeter() {
-  const ctx = meterCanvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const w = meterCanvas.width = meterCanvas.offsetWidth * dpr;
-  const h = meterCanvas.height = 60 * dpr;
-  const data = new Uint8Array(analyser ? analyser.frequencyBinCount : 128);
-  function frame() {
-    if (!isPlaying) { ctx.clearRect(0,0,w,h); return; }
-    if (analyser) analyser.getByteTimeDomainData(data);
-    ctx.clearRect(0,0,w,h);
-    ctx.strokeStyle = '#4a9eff';
-    ctx.lineWidth = 1.5 * dpr;
-    ctx.beginPath();
-    for (let i=0;i<data.length;i++) {
-      const x = (i/data.length)*w;
-      const y = ((data[i]-128)/128)*(h/2) + h/2;
-      i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
-    }
-    ctx.stroke();
-    const elapsed = (audioCtx.currentTime - startTime + pauseOffset) % (audioBuffer ? audioBuffer.duration : 1);
-    const m = Math.floor(elapsed/60), s = Math.floor(elapsed%60);
-    timeEl.textContent = m+':'+(s<10?'0':'')+s;
-    animId = requestAnimationFrame(frame);
+// ─── Seek Bar ───────────────────────────────────────
+const seekBar = document.getElementById('seekBar');
+
+function getSeekPos(e) {
+  const rect = seekBar.getBoundingClientRect();
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  return Math.max(0, Math.min(1, (clientX - rect.left)/rect.width));
+}
+
+function updateSeek(ratio) {
+  document.getElementById('seekFill').style.width = (ratio*100)+'%';
+  document.getElementById('seekThumb').style.left = (ratio*100)+'%';
+  if (audioBuffer) document.getElementById('timeElapsed').textContent = fmtTime(ratio*audioBuffer.duration);
+}
+
+seekBar.addEventListener('mousedown', e => { isSeeking=true; handleSeek(e); });
+seekBar.addEventListener('touchstart', e => { isSeeking=true; handleSeek(e); }, {passive:true});
+window.addEventListener('mousemove', e => { if(isSeeking) handleSeek(e); });
+window.addEventListener('touchmove', e => { if(isSeeking) handleSeek(e); }, {passive:true});
+window.addEventListener('mouseup', e => { if(isSeeking){isSeeking=false; commitSeek(e);} });
+window.addEventListener('touchend', e => { if(isSeeking){isSeeking=false; commitSeek(e);} });
+
+function handleSeek(e) {
+  if (!audioBuffer) return;
+  const r = getSeekPos(e);
+  updateSeek(r);
+}
+function commitSeek(e) {
+  if (!audioBuffer) return;
+  const r = getSeekPos(e.changedTouches ? {clientX:e.changedTouches[0].clientX} : e);
+  const newPos = r * audioBuffer.duration;
+  pauseOffset = newPos;
+  if (isPlaying) play(newPos);
+  else { updateSeek(r); document.getElementById('timeElapsed').textContent = fmtTime(newPos); }
+}
+
+// ─── VU Meter ───────────────────────────────────────
+function resetVU() {
+  ['vuL','vuR'].forEach(id => document.getElementById(id).style.width='0%');
+  ['peakL','peakR'].forEach(id => document.getElementById(id).style.left='0%');
+  peakLval=0; peakRval=0;
+}
+
+function getRMS(analyser) {
+  const data = new Float32Array(analyser.fftSize);
+  analyser.getFloatTimeDomainData(data);
+  let sum=0;
+  for (let i=0;i<data.length;i++) sum+=data[i]*data[i];
+  return Math.sqrt(sum/data.length);
+}
+
+function dbToPercent(db) {
+  return Math.max(0, Math.min(100, (db+60)/60*100));
+}
+
+// ─── Draw Loop ──────────────────────────────────────
+function drawLoop() {
+  if (!isPlaying) return;
+  // Seek
+  if (!isSeeking && audioBuffer) {
+    const pos = getCurrentPos();
+    const r = Math.min(pos/audioBuffer.duration, 1);
+    updateSeek(r);
   }
-  frame();
+  // VU
+  if (analyserL && analyserR) {
+    const rmsL = getRMS(analyserL);
+    const rmsR = getRMS(analyserR);
+    const dbL = rmsL>0 ? 20*Math.log10(rmsL) : -60;
+    const dbR = rmsR>0 ? 20*Math.log10(rmsR) : -60;
+    const pL = dbToPercent(dbL);
+    const pR = dbToPercent(dbR);
+    document.getElementById('vuL').style.width = pL+'%';
+    document.getElementById('vuR').style.width = pR+'%';
+    if (pL>peakLval) { peakLval=pL; clearTimeout(peakLTimer); peakLTimer=setTimeout(()=>{peakLval=0;},1500); }
+    if (pR>peakRval) { peakRval=pR; clearTimeout(peakRTimer); peakRTimer=setTimeout(()=>{peakRval=0;},1500); }
+    document.getElementById('peakL').style.left = peakLval+'%';
+    document.getElementById('peakR').style.left = peakRval+'%';
+  }
+  animId = requestAnimationFrame(drawLoop);
 }
 
+// ─── RIAA Curve ─────────────────────────────────────
 function drawCurve() {
   const p = getParams();
-  const canvas = curveCanvas;
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = (canvas.offsetWidth || 320) * dpr;
-  canvas.height = 200 * dpr;
+  const canvas = document.getElementById('curve');
+  const dpr = window.devicePixelRatio||1;
+  canvas.width = (canvas.offsetWidth||320)*dpr;
+  canvas.height = 200*dpr;
   const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-  const pad = {l:46*dpr, r:14*dpr, t:12*dpr, b:24*dpr};
+  const W=canvas.width, H=canvas.height;
+  const pad={l:44*dpr,r:12*dpr,t:12*dpr,b:24*dpr};
   ctx.clearRect(0,0,W,H);
-  const freqs = [];
-  for (let i=0;i<300;i++) freqs.push(Math.pow(10, 1.3 + i*(3.3/299)));
-  function riaaGain(f, t1, t2, t3) {
-    const w = 2*Math.PI*f;
-    const num = Math.sqrt(1 + Math.pow(w*t2,2));
-    const den = Math.sqrt(1 + Math.pow(w*t1,2)) * Math.sqrt(1 + Math.pow(w*t3,2));
-    return num/den;
+  const freqs=[]; for(let i=0;i<300;i++) freqs.push(Math.pow(10,1.3+i*3.3/299));
+  function invGain(f,t1,t2,t3){
+    const w=2*Math.PI*f;
+    return (Math.sqrt(1+Math.pow(w*t1,2))*Math.sqrt(1+Math.pow(w*t3,2)))/Math.sqrt(1+Math.pow(w*t2,2));
   }
-  const gains = freqs.map(f => 20*Math.log10(1/riaaGain(f, p.t1, p.t2, p.t3)));
-  const minG = -30, maxG = 30;
-  function xPos(f) { return pad.l + (Math.log10(f)-1.3)/3.3*(W-pad.l-pad.r); }
-  function yPos(g) { return pad.t + (1-(g-minG)/(maxG-minG))*(H-pad.t-pad.b); }
-  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-  ctx.lineWidth = 1;
-  [20,50,100,200,500,1000,2000,5000,10000,20000].forEach(f => {
-    const x = xPos(f);
-    ctx.beginPath(); ctx.moveTo(x,pad.t); ctx.lineTo(x,H-pad.b); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.font = (10*dpr)+'px -apple-system';
-    ctx.textAlign = 'center';
-    ctx.fillText(f>=1000?f/1000+'k':f, x, H-6*dpr);
+  const gains=freqs.map(f=>20*Math.log10(invGain(f,p.t1,p.t2,p.t3)));
+  const minG=-30,maxG=30;
+  function xP(f){return pad.l+(Math.log10(f)-1.3)/3.3*(W-pad.l-pad.r);}
+  function yP(g){return pad.t+(1-(g-minG)/(maxG-minG))*(H-pad.t-pad.b);}
+  ctx.strokeStyle='rgba(255,255,255,0.1)';
+  ctx.lineWidth=1;
+  [20,50,100,200,500,1000,2000,5000,10000,20000].forEach(f=>{
+    const x=xP(f); ctx.beginPath();ctx.moveTo(x,pad.t);ctx.lineTo(x,H-pad.b);ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.45)';ctx.font=(10*dpr)+'px -apple-system';
+    ctx.textAlign='center';ctx.fillText(f>=1000?f/1000+'k':f,x,H-5*dpr);
   });
-  [-20,-10,0,10,20].forEach(g => {
-    const y = yPos(g);
-    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.font = (10*dpr)+'px -apple-system';
-    ctx.textAlign = 'right';
-    ctx.fillText(g+'dB', pad.l-5*dpr, y+4*dpr);
+  [-20,-10,0,10,20].forEach(g=>{
+    const y=yP(g); ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.45)';ctx.font=(10*dpr)+'px -apple-system';
+    ctx.textAlign='right';ctx.fillText(g+'dB',pad.l-4*dpr,y+4*dpr);
   });
-  ctx.beginPath();
-  ctx.strokeStyle = '#4a9eff';
-  ctx.lineWidth = 2*dpr;
-  freqs.forEach((f,i) => {
-    const x = xPos(f), y = yPos(gains[i]);
-    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
-  });
+  ctx.beginPath();ctx.strokeStyle='#4a9eff';ctx.lineWidth=2.5*dpr;
+  freqs.forEach((f,i)=>{const x=xP(f),y=yP(gains[i]);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
   ctx.stroke();
 }
 
-['t1','t2','t3'].forEach(id => {
-  document.getElementById(id).addEventListener('input', function() {
-    document.getElementById(id+'Val').textContent = this.value;
+// ─── Sliders ────────────────────────────────────────
+['t1','t2','t3'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',function(){
+    document.getElementById(id+'Val').textContent=this.value;
     drawCurve();
   });
 });
-document.getElementById('gain').addEventListener('input', function() {
-  document.getElementById('gainVal').textContent = this.value+' dB';
-  if (gainNode) gainNode.gain.value = Math.pow(10, parseFloat(this.value)/20);
+document.getElementById('gain').addEventListener('input',function(){
+  document.getElementById('gainVal').textContent=this.value+' dB';
+  if(gainNode) gainNode.gain.value=Math.pow(10,parseFloat(this.value)/20);
 });
-document.getElementById('btnReset').addEventListener('click', () => {
-  ['t1','t2','t3'].forEach(id => {});
-  document.getElementById('t1').value = 3180;
-  document.getElementById('t2').value = 318;
-  document.getElementById('t3').value = 75;
-  document.getElementById('gain').value = 0;
-  document.getElementById('t1Val').textContent = '3180';
-  document.getElementById('t2Val').textContent = '318';
-  document.getElementById('t3Val').textContent = '75';
-  document.getElementById('gainVal').textContent = '0 dB';
+document.getElementById('btnReset').addEventListener('click',()=>{
+  document.getElementById('t1').value=3180;document.getElementById('t1Val').textContent='3180';
+  document.getElementById('t2').value=318;document.getElementById('t2Val').textContent='318';
+  document.getElementById('t3').value=75;document.getElementById('t3Val').textContent='75';
+  document.getElementById('gain').value=0;document.getElementById('gainVal').textContent='0 dB';
   drawCurve();
 });
 
-window.addEventListener('load', () => setTimeout(drawCurve, 200));
-window.addEventListener('resize', drawCurve);
-
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
-  });
-}
+function fmtTime(s){const m=Math.floor(s/60);const sec=Math.floor(s%60);return m+':'+(sec<10?'0':'')+sec;}
+window.addEventListener('load',()=>setTimeout(drawCurve,200));
+window.addEventListener('resize',drawCurve);
+if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 </script>
 </body>
 </html>

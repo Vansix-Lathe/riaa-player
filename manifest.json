@@ -1,22 +1,14 @@
 {
-  "name": "逆RIAAプレイヤー",
+  "name": "Inverse RIAA Player",
   "short_name": "RIAA Player",
-  "description": "Vansix エキサイタープロトタイプ用 逆RIAAプレイヤー",
+  "description": "Vansix exciter prototype — Inverse RIAA playback tool",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f1115",
   "theme_color": "#0f1115",
   "orientation": "portrait",
   "icons": [
-    {
-      "src": "icon.png",
-      "sizes": "180x180",
-      "type": "image/png"
-    },
-    {
-      "src": "icon.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
+    { "src": "icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icon.png", "sizes": "512x512", "type": "image/png" }
   ]
 }
