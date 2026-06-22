@@ -11,11 +11,7 @@
 <link rel="manifest" href="manifest.json">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-:root{
-  --bg:#0f1115;--card:#1a1d24;--border:rgba(255,255,255,0.1);
-  --text:#f0f0f0;--sub:#9a9ea8;--accent:#4a9eff;
-  --ok:#3ecf8e;--warn:#f5a623;--danger:#ff5c5c;
-}
+:root{--bg:#0f1115;--card:#1a1d24;--border:rgba(255,255,255,0.1);--text:#f0f0f0;--sub:#9a9ea8;--accent:#4a9eff;--ok:#3ecf8e;--warn:#f5a623;--danger:#ff5c5c;}
 body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);}
 .app{max-width:480px;margin:0 auto;padding:1.25rem 1rem 3rem;}
 .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;}
@@ -36,32 +32,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 .btn:active{transform:scale(0.97);}
 .btn.primary{background:rgba(74,158,255,0.15);border-color:var(--accent);color:var(--accent);font-weight:600;}
 .btn:disabled{opacity:.35;pointer-events:none;}
-
-/* ── Native range seek ── */
-.seek-wrap{margin-bottom:8px;}
-.seek-range{
-  -webkit-appearance:none;
-  width:100%;
-  height:4px;
-  border-radius:2px;
-  outline:none;
-  cursor:pointer;
-  display:block;
-  margin:14px 0; /* vertical margin = larger touch target */
-  background:rgba(255,255,255,0.12); /* overridden by JS gradient */
-}
-.seek-range::-webkit-slider-thumb{
-  -webkit-appearance:none;
-  width:24px;height:24px;
-  border-radius:50%;
-  background:var(--accent);
-  box-shadow:0 0 8px rgba(74,158,255,.5);
-  cursor:pointer;
-}
+.seek-range{-webkit-appearance:none;width:100%;height:4px;border-radius:2px;outline:none;cursor:pointer;display:block;margin:14px 0;}
+.seek-range::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px rgba(74,158,255,.5);cursor:pointer;}
 .seek-range:disabled{opacity:.35;pointer-events:none;}
-.time-row{display:flex;justify-content:space-between;font-size:11px;color:var(--sub);margin-top:-8px;}
-
-/* VU */
+.time-row{display:flex;justify-content:space-between;font-size:11px;color:var(--sub);margin-top:-8px;margin-bottom:10px;}
 .vu-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
 .vu-lbl{font-size:11px;font-weight:700;width:14px;text-align:center;color:var(--sub);}
 .vu-bg{flex:1;height:16px;background:rgba(255,255,255,0.05);border-radius:4px;overflow:hidden;position:relative;}
@@ -72,8 +46,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 .vu-scale{display:flex;justify-content:space-between;font-size:9px;color:var(--sub);padding:0 2px;margin-bottom:4px;}
 .clip-note{font-size:10px;color:var(--sub);margin-top:6px;line-height:1.5;}
 .clip-note b{color:var(--warn);}
-
-/* Sliders */
 .slider-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
 .slider-row label{font-size:12px;color:var(--sub);width:80px;flex-shrink:0;}
 .slider-row input[type=range]{flex:1;-webkit-appearance:none;height:4px;border-radius:2px;background:rgba(255,255,255,0.15);}
@@ -93,68 +65,56 @@ canvas{width:100%;display:block;border-radius:10px;background:rgba(255,255,255,0
       <button class="lang-btn" id="btnJP" onclick="setLang('jp')">JP</button>
     </div>
   </div>
-
   <div class="card">
     <div class="card-header">
       <span class="sec" data-en="Source" data-jp="音源">Source</span>
       <span id="status" class="badge">Standby</span>
     </div>
     <div id="dropzone" onclick="document.getElementById('fi').click()">
-      <div data-en="Tap to select audio file" data-jp="タップして音声ファイルを選択">Tap to select audio file</div>
+      <div id="dzMain" data-en="Tap to select audio file" data-jp="タップして音声ファイルを選択">Tap to select audio file</div>
       <div style="font-size:11px;margin-top:4px;">MP3 / WAV / FLAC / AAC</div>
     </div>
     <input type="file" id="fi" accept="audio/*,.mp3,.wav,.flac,.m4a,.aac,.ogg" style="display:none;">
   </div>
-
   <div class="card">
     <p class="sec" data-en="Playback" data-jp="再生コントロール" style="margin-bottom:10px;">Playback</p>
     <div class="ctrl-row">
       <button class="btn primary" id="btnPlay" disabled>Play</button>
       <button class="btn" id="btnStop" disabled data-en="Stop" data-jp="停止">Stop</button>
     </div>
-    <div class="seek-wrap">
-      <input type="range" id="seekInput" class="seek-range" min="0" max="10000" value="0" disabled>
-      <div class="time-row"><span id="tEl">0:00</span><span id="tDur">0:00</span></div>
-    </div>
+    <input type="range" id="seekInput" class="seek-range" min="0" max="10000" value="0" disabled>
+    <div class="time-row"><span id="tEl">0:00</span><span id="tDur">0:00</span></div>
     <div class="vu-scale"><span>-∞</span><span>-18</span><span>-12</span><span>-6</span><span>-3</span><span>0</span></div>
     <div class="vu-row"><span class="vu-lbl">L</span><div class="vu-bg"><div class="vu-fill" id="vuL"></div><div class="vu-peak" id="pkL"></div></div><span class="vu-clip" id="clipL">CLIP</span></div>
     <div class="vu-row"><span class="vu-lbl">R</span><div class="vu-bg"><div class="vu-fill" id="vuR"></div><div class="vu-peak" id="pkR"></div></div><span class="vu-clip" id="clipR">CLIP</span></div>
     <p class="clip-note" data-en="Signal level after inverse RIAA + gain. Keep below <b>orange zone (-6dB)</b> to avoid stylus overload." data-jp="逆RIAA＋ゲイン後の信号レベル。<b>オレンジ帯（-6dB）以下</b>でカッティングすること。">Signal level after inverse RIAA + gain. Keep below <b>orange zone (-6dB)</b> to avoid stylus overload.</p>
   </div>
-
   <div class="card">
     <p class="sec" data-en="Inverse RIAA Parameters" data-jp="逆RIAAパラメータ" style="margin-bottom:12px;">Inverse RIAA Parameters</p>
-    <div class="slider-row">
-      <label data-en="Gain" data-jp="ゲイン">Gain</label>
-      <input type="range" id="gain" min="-20" max="20" step="1" value="0">
-      <span class="val" id="gainVal">0 dB</span>
-    </div>
+    <div class="slider-row"><label data-en="Gain" data-jp="ゲイン">Gain</label><input type="range" id="gain" min="-20" max="20" step="1" value="0"><span class="val" id="gainVal">0 dB</span></div>
     <div class="slider-row"><label>T1 (3180µs)</label><input type="range" id="t1" min="2000" max="4000" step="10" value="3180"><span class="val" id="t1Val">3180</span></div>
     <div class="slider-row"><label>T2 (318µs)</label><input type="range" id="t2" min="250" max="400" step="1" value="318"><span class="val" id="t2Val">318</span></div>
     <div class="slider-row"><label>T3 (75µs)</label><input type="range" id="t3" min="50" max="120" step="1" value="75"><span class="val" id="t3Val">75</span></div>
     <button class="resetbtn" id="btnReset" data-en="Reset to Standard Values" data-jp="標準値にリセット">Reset to Standard Values</button>
   </div>
-
   <div class="card">
     <p class="sec" data-en="RIAA Curve" data-jp="RIAAカーブ表示" style="margin-bottom:8px;">RIAA Curve</p>
     <canvas id="curve" height="200"></canvas>
   </div>
-
-  <p class="hint" data-en="Standard inverse RIAA (T1=3180µs / T2=318µs / T3=75µs) applied via Web Audio API IIR filter. Vansix exciter prototype validation tool." data-jp="標準RIAA逆カーブをWeb Audio API IIRフィルターでリアルタイム適用。Vansixエキサイタープロトタイプ検証用。">Standard inverse RIAA (T1=3180µs / T2=318µs / T3=75µs) applied via Web Audio API IIR filter.</p>
+  <p class="hint" data-en="Standard inverse RIAA (T1=3180µs / T2=318µs / T3=75µs) applied via Web Audio API IIR filter. Vansix exciter prototype validation tool." data-jp="標準RIAA逆カーブをリアルタイム適用。Vansixエキサイタープロトタイプ検証用。">Standard inverse RIAA applied via Web Audio API IIR filter. Vansix exciter prototype validation tool.</p>
 </div>
-
 <script>
-// ── i18n ──────────────────────────────────────────────────────────
+// ── i18n ──────────────────────────────────────────────────────
 let lang='en';
 const T={
   en:{play:'Play',pause:'Pause',stop:'Stop',standby:'Standby',loading:'Loading...',
       ready:'Ready',playing:'Playing',paused:'Paused',stopped:'Stopped',done:'Done',
-      loaded:'Loaded — tap to reselect',decErr:'Decode error',readErr:'Read error',
-      recovering:'Recovering...'},
+      decoding:'Decoding...',restored:'File restored',
+      loaded:'Loaded — tap to reselect',decErr:'Decode error',readErr:'Read error'},
   jp:{play:'再生',pause:'一時停止',stop:'停止',standby:'待機中',loading:'読み込み中',
       ready:'準備完了',playing:'再生中',paused:'一時停止',stopped:'停止',done:'完了',
-      loaded:'読み込み完了：タップで再選択',decErr:'デコードエラー',readErr:'読み込み失敗',
-      recovering:'復元中...'}
+      decoding:'デコード中...',restored:'ファイル復元済み',
+      loaded:'読み込み完了：タップで再選択',decErr:'デコードエラー',readErr:'読み込み失敗'}
 };
 function setLang(l){
   lang=l;
@@ -170,325 +130,256 @@ function setLang(l){
   document.getElementById('btnReset').textContent=l==='en'?'Reset to Standard Values':'標準値にリセット';
 }
 
-// ── State ──────────────────────────────────────────────────────────
+// ── IndexedDB ─────────────────────────────────────────────────
+const IDB={
+  open(){
+    return new Promise((res,rej)=>{
+      const r=indexedDB.open('riaa-player',1);
+      r.onupgradeneeded=e=>e.target.result.createObjectStore('audio');
+      r.onsuccess=e=>res(e.target.result);
+      r.onerror=()=>rej(r.error);
+    });
+  },
+  async save(buf,name){
+    try{
+      const db=await this.open();
+      const tx=db.transaction('audio','readwrite');
+      tx.objectStore('audio').put({data:buf,name:name},'current');
+      return new Promise((res,rej)=>{tx.oncomplete=res;tx.onerror=()=>rej(tx.error);});
+    }catch(e){}
+  },
+  async load(){
+    try{
+      const db=await this.open();
+      return new Promise((res)=>{
+        const tx=db.transaction('audio','readonly');
+        const r=tx.objectStore('audio').get('current');
+        r.onsuccess=()=>res(r.result||null);
+        r.onerror=()=>res(null);
+      });
+    }catch(e){return null;}
+  }
+};
+
+// ── State ─────────────────────────────────────────────────────
 let audioCtx=null;
-let audioBuffer=null;
-let fileBuffer=null;  // Original ArrayBuffer — survives AudioContext recreation
-let srcNode=null, gainNode=null, iirNode=null, splitter=null, anlL=null, anlR=null;
-let isPlaying=false;
-let startTime=0, pausePos=0, animId=null;
-let playGen=0;
+let audioBuffer=null;    // Decoded PCM — tied to current audioCtx on iOS
+let fileBuffer=null;     // Original ArrayBuffer — survives AudioContext recreation
+let fileName='';
+let srcNode=null,gainNode=null,iirNode=null,splitter=null,anlL=null,anlR=null;
+let isPlaying=false,startTime=0,pausePos=0,animId=null,playGen=0;
 let isSeeking=false;
 
-function currentPos(){
-  if(!isPlaying||!audioCtx) return pausePos;
-  return audioCtx.currentTime - startTime;
-}
-function fmtTime(s){
-  s=Math.max(0,s||0);
-  const m=Math.floor(s/60),sec=Math.floor(s%60);
-  return m+':'+(sec<10?'0':'')+sec;
-}
-function setSt(txt,cls){
-  const s=document.getElementById('status');
-  s.textContent=txt; s.className='badge'+(cls?' '+cls:'');
-}
-function syncPlayBtn(){
-  document.getElementById('btnPlay').textContent=isPlaying?T[lang].pause:T[lang].play;
-}
-
-// ── Seek range input (native — most reliable on iOS) ───────────────
 const seekInput=document.getElementById('seekInput');
 
-function seekGrad(ratio){
-  const p=(ratio*100).toFixed(2)+'%';
-  return 'linear-gradient(to right,#4a9eff 0%,#4a9eff '+p+',rgba(255,255,255,0.12) '+p+',rgba(255,255,255,0.12) 100%)';
-}
-function updateSeekUI(ratio){
-  if(isSeeking) return; // don't override user drag
-  ratio=Math.max(0,Math.min(1,ratio||0));
-  seekInput.value=Math.round(ratio*10000);
-  seekInput.style.background=seekGrad(ratio);
-  document.getElementById('tEl').textContent=fmtTime(ratio*(audioBuffer?audioBuffer.duration:0));
+function currentPos(){return isPlaying&&audioCtx?audioCtx.currentTime-startTime:pausePos;}
+function fmtTime(s){s=Math.max(0,s||0);const m=Math.floor(s/60),sec=Math.floor(s%60);return m+':'+(sec<10?'0':'')+sec;}
+function setSt(t,c){const s=document.getElementById('status');s.textContent=t;s.className='badge'+(c?' '+c:'');}
+function syncPlayBtn(){document.getElementById('btnPlay').textContent=isPlaying?T[lang].pause:T[lang].play;}
+
+function seekGrad(r){const p=(r*100).toFixed(2)+'%';return'linear-gradient(to right,#4a9eff 0%,#4a9eff '+p+',rgba(255,255,255,0.12) '+p+',rgba(255,255,255,0.12) 100%)';}
+function updateSeekUI(r){
+  if(isSeeking) return;
+  r=Math.max(0,Math.min(1,r||0));
+  seekInput.value=Math.round(r*10000);
+  seekInput.style.background=seekGrad(r);
+  document.getElementById('tEl').textContent=fmtTime(r*(audioBuffer?audioBuffer.duration:0));
 }
 
-// input = fires during drag
 seekInput.addEventListener('input',function(){
   if(!audioBuffer) return;
   isSeeking=true;
-  const ratio=this.value/10000;
-  this.style.background=seekGrad(ratio);
-  document.getElementById('tEl').textContent=fmtTime(ratio*audioBuffer.duration);
+  const r=this.value/10000;
+  this.style.background=seekGrad(r);
+  document.getElementById('tEl').textContent=fmtTime(r*audioBuffer.duration);
 });
-// change = fires on release (touchend / mouseup)
 seekInput.addEventListener('change',function(){
   if(!audioBuffer) return;
   isSeeking=false;
-  const ratio=this.value/10000;
-  const newPos=ratio*audioBuffer.duration;
-  this.style.background=seekGrad(ratio);
-  if(isPlaying) doPlay(newPos);
-  else { pausePos=newPos; document.getElementById('tEl').textContent=fmtTime(newPos); }
+  const r=this.value/10000;
+  const pos=r*audioBuffer.duration;
+  this.style.background=seekGrad(r);
+  if(isPlaying) doPlay(pos); else{pausePos=pos;document.getElementById('tEl').textContent=fmtTime(pos);}
 });
 
-// ── AudioContext — synchronous recovery pattern ────────────────────
-// iOS rule: AudioContext created inside a click handler starts in "running" state.
-// Instead of await-ing resume() (which breaks the gesture chain),
-// we close the suspended context and create a fresh one synchronously.
-function getOrCreateCtx(){
-  if(!audioCtx || audioCtx.state==='closed'){
-    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-    return 'new';
-  }
-  if(audioCtx.state==='suspended'){
-    try{ audioCtx.close(); }catch(e){}
-    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-    return 'recreated';
-  }
-  return 'ok';
+// ── AudioContext management ────────────────────────────────────
+// KEY: iOS cannot reuse AudioBuffer from a closed/replaced AudioContext.
+// Solution: whenever AudioContext is recreated, null audioBuffer to force re-decode.
+function freshCtx(){
+  // Must be called synchronously inside a click handler for iOS "running" state
+  if(audioCtx){try{audioCtx.close();}catch(e){}}
+  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  audioBuffer=null; // force re-decode with new context
+}
+function ctxIsStale(){
+  return !audioCtx || audioCtx.state==='closed' || audioCtx.state==='suspended';
 }
 
-// ── File load ──────────────────────────────────────────────────────
+// ── File load ─────────────────────────────────────────────────
 document.getElementById('fi').addEventListener('change',e=>{
-  if(e.target.files[0]) loadFile(e.target.files[0]);
+  if(e.target.files[0]) processFile(e.target.files[0]);
 });
-function loadFile(file){
+
+async function processFile(file){
   setSt(T[lang].loading,'');
   const reader=new FileReader();
   reader.onerror=()=>setSt(T[lang].readErr,'err');
   reader.onload=async ev=>{
     const ab=ev.target.result;
-    fileBuffer=ab.slice(); // keep copy for recovery
-    try{
-      if(!audioCtx||audioCtx.state==='closed') audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-      audioBuffer=await audioCtx.decodeAudioData(ab);
-      const dz=document.getElementById('dropzone');
-      dz.classList.add('loaded');
-      dz.innerHTML='<div>'+T[lang].loaded+'</div><div style="font-size:11px;margin-top:4px;word-break:break-all;">'+file.name+'</div>';
-      document.getElementById('btnPlay').disabled=false;
-      seekInput.disabled=false;
-      seekInput.value=0;
-      seekInput.style.background=seekGrad(0);
-      document.getElementById('tDur').textContent=fmtTime(audioBuffer.duration);
-      pausePos=0; updateSeekUI(0);
-      setSt(T[lang].ready,'ok');
-      drawCurve();
-    }catch(err){
-      setSt(T[lang].decErr+(err.message?' ('+err.message+')':''),'err');
-    }
+    fileBuffer=ab.slice();
+    fileName=file.name;
+    IDB.save(fileBuffer.slice(),fileName); // persist for full-kill recovery
+    await decodeAndReady(); // decode with current/new context
   };
   reader.readAsArrayBuffer(file);
 }
 
-// ── Play / Pause / Stop ────────────────────────────────────────────
-document.getElementById('btnPlay').addEventListener('click',function(){
-  // getOrCreateCtx() MUST be called synchronously here (iOS gesture chain requirement)
-  const ctxState=getOrCreateCtx();
+async function decodeAndReady(){
+  if(!fileBuffer) return;
+  try{
+    // Don't call freshCtx() here — not in user gesture. Just ensure ctx exists.
+    if(!audioCtx||audioCtx.state==='closed') audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    audioBuffer=await audioCtx.decodeAudioData(fileBuffer.slice());
+    const dz=document.getElementById('dropzone');
+    dz.classList.add('loaded');
+    dz.innerHTML='<div>'+T[lang].loaded+'</div><div style="font-size:11px;margin-top:4px;word-break:break-all;">'+fileName+'</div>';
+    document.getElementById('btnPlay').disabled=false;
+    seekInput.disabled=false;
+    seekInput.value=0; seekInput.style.background=seekGrad(0);
+    document.getElementById('tDur').textContent=fmtTime(audioBuffer.duration);
+    pausePos=0; updateSeekUI(0);
+    setSt(T[lang].ready,'ok');
+    drawCurve();
+  }catch(err){
+    setSt(T[lang].decErr,'err');
+  }
+}
 
+// ── Play button — synchronous AudioContext recovery ────────────
+document.getElementById('btnPlay').addEventListener('click',function(){
+  // STEP 1: Recreate AudioContext synchronously inside user gesture (iOS requirement)
+  // This also nulls audioBuffer, forcing re-decode from fileBuffer
+  if(ctxIsStale()) freshCtx();
+
+  // STEP 2: Re-decode if audioBuffer was nulled (or never existed)
   if(!audioBuffer){
-    // audioBuffer lost (page was fully killed + restarted) — re-decode from fileBuffer
-    if(fileBuffer){
-      setSt(T[lang].recovering,'');
-      audioCtx.decodeAudioData(fileBuffer.slice()).then(buf=>{
-        audioBuffer=buf;
-        document.getElementById('tDur').textContent=fmtTime(audioBuffer.duration);
-        document.getElementById('btnPlay').disabled=false;
-        seekInput.disabled=false;
-        doPlay(pausePos);
-      }).catch(()=>setSt(T[lang].decErr,'err'));
-    }
-    return;
+    if(!fileBuffer){return;} // No file loaded at all
+    setSt(T[lang].decoding,'');
+    // audioCtx is now running (created above in step 1)
+    audioCtx.decodeAudioData(fileBuffer.slice()).then(buf=>{
+      audioBuffer=buf;
+      document.getElementById('tDur').textContent=fmtTime(buf.duration);
+      seekInput.disabled=false;
+      setSt(T[lang].ready,'ok');
+      doPlay(pausePos);
+    }).catch(()=>setSt(T[lang].decErr,'err'));
+    return; // wait for decode
   }
 
+  // STEP 3: Normal play/pause
   if(isPlaying) doPause(); else doPlay(pausePos);
 });
 
-document.getElementById('btnStop').addEventListener('click',function(){
-  doStop();
-});
+document.getElementById('btnStop').addEventListener('click',()=>doStop());
 
+// ── Playback engine ────────────────────────────────────────────
 function doPlay(fromPos){
   if(!audioCtx||!audioBuffer) return;
   killNodes();
   const gen=++playGen;
   const p=getParams();
-  gainNode=audioCtx.createGain();
-  gainNode.gain.value=Math.pow(10,p.gain/20);
+  gainNode=audioCtx.createGain(); gainNode.gain.value=Math.pow(10,p.gain/20);
   const c=buildCoeffs(p.t1,p.t2,p.t3,audioCtx.sampleRate);
   iirNode=audioCtx.createIIRFilter(c.ff,c.fb);
   splitter=audioCtx.createChannelSplitter(2);
   anlL=audioCtx.createAnalyser(); anlL.fftSize=2048;
   anlR=audioCtx.createAnalyser(); anlR.fftSize=2048;
-  srcNode=audioCtx.createBufferSource();
-  srcNode.buffer=audioBuffer;
-  srcNode.connect(iirNode);
-  iirNode.connect(gainNode);
+  srcNode=audioCtx.createBufferSource(); srcNode.buffer=audioBuffer;
+  srcNode.connect(iirNode); iirNode.connect(gainNode);
   gainNode.connect(splitter);
   splitter.connect(anlL,0); splitter.connect(anlR,1);
-  anlL.connect(audioCtx.destination);
-  anlR.connect(audioCtx.destination);
+  anlL.connect(audioCtx.destination); anlR.connect(audioCtx.destination);
   const safePos=Math.min(Math.max(fromPos||0,0),audioBuffer.duration-0.1);
   srcNode.start(0,safePos);
   startTime=audioCtx.currentTime-safePos;
-  isPlaying=true;
-  syncPlayBtn();
+  isPlaying=true; syncPlayBtn();
   document.getElementById('btnStop').disabled=false;
   setSt(T[lang].playing,'ok');
   srcNode.onended=()=>{
-    if(gen!==playGen) return; // stale: seek/stop happened, ignore
-    if(!isPlaying) return;
-    // Natural end
+    if(gen!==playGen||!isPlaying) return;
     isPlaying=false; pausePos=0;
-    syncPlayBtn();
-    document.getElementById('btnStop').disabled=true;
-    setSt(T[lang].done,'');
-    updateSeekUI(0);
-    resetVU();
+    syncPlayBtn(); document.getElementById('btnStop').disabled=true;
+    setSt(T[lang].done,''); updateSeekUI(0); resetVU();
   };
   loop();
 }
+function doPause(){pausePos=currentPos();killNodes();syncPlayBtn();setSt(T[lang].paused,'');}
+function doStop(){pausePos=0;killNodes();syncPlayBtn();document.getElementById('btnStop').disabled=true;setSt(T[lang].stopped,'');updateSeekUI(0);resetVU();}
+function killNodes(){if(srcNode){try{srcNode.stop();}catch(e){}srcNode=null;}if(animId){cancelAnimationFrame(animId);animId=null;}isPlaying=false;}
 
-function doPause(){
-  pausePos=currentPos();
-  killNodes();
-  syncPlayBtn();
-  setSt(T[lang].paused,'');
-}
-
-function doStop(){
-  pausePos=0;
-  killNodes();
-  syncPlayBtn();
-  document.getElementById('btnStop').disabled=true;
-  setSt(T[lang].stopped,'');
-  updateSeekUI(0);
-  resetVU();
-}
-
-function killNodes(){
-  if(srcNode){try{srcNode.stop();}catch(e){} srcNode=null;}
-  if(animId){cancelAnimationFrame(animId);animId=null;}
-  isPlaying=false;
-}
-
-// ── VU meter ──────────────────────────────────────────────────────
+// ── VU ────────────────────────────────────────────────────────
 let pkLv=0,pkRv=0,pkLt=0,pkRt=0,clipLt=0,clipRt=0;
 const PEAK_HOLD=2000,CLIP_HOLD=1500;
-function resetVU(){
-  document.getElementById('vuL').style.width='0%';
-  document.getElementById('vuR').style.width='0%';
-  document.getElementById('pkL').style.left='0%';
-  document.getElementById('pkR').style.left='0%';
-  document.getElementById('clipL').classList.remove('show');
-  document.getElementById('clipR').classList.remove('show');
-  pkLv=0; pkRv=0;
-}
-function getPeak(anl){
-  const d=new Float32Array(anl.fftSize);
-  anl.getFloatTimeDomainData(d);
-  let mx=0; for(let i=0;i<d.length;i++){const a=Math.abs(d[i]);if(a>mx)mx=a;} return mx;
-}
-function linToPct(v){
-  if(v<=0) return 0;
-  const db=20*Math.log10(v);
-  return Math.max(0,Math.min(100,(db+60)/60*100));
-}
+function resetVU(){['vuL','vuR'].forEach(id=>document.getElementById(id).style.width='0%');['pkL','pkR'].forEach(id=>document.getElementById(id).style.left='0%');['clipL','clipR'].forEach(id=>document.getElementById(id).classList.remove('show'));pkLv=0;pkRv=0;}
+function getPeak(a){const d=new Float32Array(a.fftSize);a.getFloatTimeDomainData(d);let m=0;for(let i=0;i<d.length;i++){const v=Math.abs(d[i]);if(v>m)m=v;}return m;}
+function linToPct(v){if(v<=0)return 0;const db=20*Math.log10(v);return Math.max(0,Math.min(100,(db+60)/60*100));}
 function updateVU(){
   if(!anlL||!anlR) return;
-  const now=Date.now();
-  const vL=getPeak(anlL),vR=getPeak(anlR);
-  const pL=linToPct(vL),pR=linToPct(vR);
-  document.getElementById('vuL').style.width=pL+'%';
-  document.getElementById('vuR').style.width=pR+'%';
+  const now=Date.now(),vL=getPeak(anlL),vR=getPeak(anlR),pL=linToPct(vL),pR=linToPct(vR);
+  document.getElementById('vuL').style.width=pL+'%'; document.getElementById('vuR').style.width=pR+'%';
   if(pL>pkLv){pkLv=pL;pkLt=now;} if(pR>pkRv){pkRv=pR;pkRt=now;}
-  if(now-pkLt>PEAK_HOLD) pkLv=Math.max(0,pkLv-1.5);
-  if(now-pkRt>PEAK_HOLD) pkRv=Math.max(0,pkRv-1.5);
-  document.getElementById('pkL').style.left=pkLv+'%';
-  document.getElementById('pkR').style.left=pkRv+'%';
-  if(vL>=0.99){clipLt=now;document.getElementById('clipL').classList.add('show');}
-  else if(now-clipLt>CLIP_HOLD) document.getElementById('clipL').classList.remove('show');
-  if(vR>=0.99){clipRt=now;document.getElementById('clipR').classList.add('show');}
-  else if(now-clipRt>CLIP_HOLD) document.getElementById('clipR').classList.remove('show');
+  if(now-pkLt>PEAK_HOLD)pkLv=Math.max(0,pkLv-1.5); if(now-pkRt>PEAK_HOLD)pkRv=Math.max(0,pkRv-1.5);
+  document.getElementById('pkL').style.left=pkLv+'%'; document.getElementById('pkR').style.left=pkRv+'%';
+  if(vL>=0.99){clipLt=now;document.getElementById('clipL').classList.add('show');}else if(now-clipLt>CLIP_HOLD)document.getElementById('clipL').classList.remove('show');
+  if(vR>=0.99){clipRt=now;document.getElementById('clipR').classList.add('show');}else if(now-clipRt>CLIP_HOLD)document.getElementById('clipR').classList.remove('show');
 }
+function loop(){if(!isPlaying)return;if(!isSeeking&&audioBuffer)updateSeekUI(Math.min(currentPos()/audioBuffer.duration,1));updateVU();animId=requestAnimationFrame(loop);}
 
-// ── Main loop ─────────────────────────────────────────────────────
-function loop(){
-  if(!isPlaying) return;
-  if(!isSeeking && audioBuffer){
-    updateSeekUI(Math.min(currentPos()/audioBuffer.duration,1));
-  }
-  updateVU();
-  animId=requestAnimationFrame(loop);
-}
-
-// ── RIAA curve ────────────────────────────────────────────────────
-function getParams(){
-  return{
-    gain:parseFloat(document.getElementById('gain').value),
-    t1:parseFloat(document.getElementById('t1').value)*1e-6,
-    t2:parseFloat(document.getElementById('t2').value)*1e-6,
-    t3:parseFloat(document.getElementById('t3').value)*1e-6
-  };
-}
-function buildCoeffs(t1,t2,t3,sr){
-  const k=2*sr;
-  const w1=2*Math.PI/t1,w2=2*Math.PI/t2,w3=2*Math.PI/t3;
-  const b0=(k+w1)*(k+w3),b1=(-(k+w1)*(k-w3)-(k-w1)*(k+w3)),b2=(k-w1)*(k-w3);
-  const a0=(k+w2)*(k+w3),a1=(-(k+w2)*(k-w3)-(k-w2)*(k+w3)),a2=(k-w2)*(k-w3);
-  return{ff:[b0/a0,b1/a0,b2/a0],fb:[1,a1/a0,a2/a0]};
-}
+// ── RIAA curve ────────────────────────────────────────────────
+function getParams(){return{gain:parseFloat(document.getElementById('gain').value),t1:parseFloat(document.getElementById('t1').value)*1e-6,t2:parseFloat(document.getElementById('t2').value)*1e-6,t3:parseFloat(document.getElementById('t3').value)*1e-6};}
+function buildCoeffs(t1,t2,t3,sr){const k=2*sr,w1=2*Math.PI/t1,w2=2*Math.PI/t2,w3=2*Math.PI/t3,b0=(k+w1)*(k+w3),b1=(-(k+w1)*(k-w3)-(k-w1)*(k+w3)),b2=(k-w1)*(k-w3),a0=(k+w2)*(k+w3),a1=(-(k+w2)*(k-w3)-(k-w2)*(k+w3)),a2=(k-w2)*(k-w3);return{ff:[b0/a0,b1/a0,b2/a0],fb:[1,a1/a0,a2/a0]};}
 function drawCurve(){
-  const p=getParams();
-  const cv=document.getElementById('curve');
-  const dpr=window.devicePixelRatio||1;
-  cv.width=(cv.offsetWidth||320)*dpr; cv.height=200*dpr;
-  const ctx=cv.getContext('2d');
-  const W=cv.width,H=cv.height;
-  const pad={l:44*dpr,r:12*dpr,t:12*dpr,b:24*dpr};
+  const p=getParams(),cv=document.getElementById('curve'),dpr=window.devicePixelRatio||1;
+  cv.width=(cv.offsetWidth||320)*dpr;cv.height=200*dpr;
+  const ctx=cv.getContext('2d'),W=cv.width,H=cv.height,pad={l:44*dpr,r:12*dpr,t:12*dpr,b:24*dpr};
   ctx.clearRect(0,0,W,H);
   const freqs=[];for(let i=0;i<300;i++)freqs.push(Math.pow(10,1.3+i*3.3/299));
-  function inv(f,t1,t2,t3){const w=2*Math.PI*f;return(Math.sqrt(1+Math.pow(w*t1,2))*Math.sqrt(1+Math.pow(w*t3,2)))/Math.sqrt(1+Math.pow(w*t2,2));}
-  const gains=freqs.map(f=>20*Math.log10(inv(f,p.t1,p.t2,p.t3)));
+  const gains=freqs.map(f=>{const w=2*Math.PI*f;return 20*Math.log10((Math.sqrt(1+Math.pow(w*p.t1,2))*Math.sqrt(1+Math.pow(w*p.t3,2)))/Math.sqrt(1+Math.pow(w*p.t2,2)));});
   const minG=-30,maxG=30;
   function xP(f){return pad.l+(Math.log10(f)-1.3)/3.3*(W-pad.l-pad.r);}
   function yP(g){return pad.t+(1-(g-minG)/(maxG-minG))*(H-pad.t-pad.b);}
   ctx.strokeStyle='rgba(255,255,255,0.1)';ctx.lineWidth=1;
-  [20,50,100,200,500,1000,2000,5000,10000,20000].forEach(f=>{
-    const x=xP(f);ctx.beginPath();ctx.moveTo(x,pad.t);ctx.lineTo(x,H-pad.b);ctx.stroke();
-    ctx.fillStyle='rgba(255,255,255,0.45)';ctx.font=(10*dpr)+'px -apple-system';
-    ctx.textAlign='center';ctx.fillText(f>=1000?f/1000+'k':f,x,H-5*dpr);
-  });
-  [-20,-10,0,10,20].forEach(g=>{
-    const y=yP(g);ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
-    ctx.fillStyle='rgba(255,255,255,0.45)';ctx.font=(10*dpr)+'px -apple-system';
-    ctx.textAlign='right';ctx.fillText(g+'dB',pad.l-4*dpr,y+4*dpr);
-  });
+  [20,50,100,200,500,1000,2000,5000,10000,20000].forEach(f=>{const x=xP(f);ctx.beginPath();ctx.moveTo(x,pad.t);ctx.lineTo(x,H-pad.b);ctx.stroke();ctx.fillStyle='rgba(255,255,255,0.45)';ctx.font=(10*dpr)+'px -apple-system';ctx.textAlign='center';ctx.fillText(f>=1000?f/1000+'k':f,x,H-5*dpr);});
+  [-20,-10,0,10,20].forEach(g=>{const y=yP(g);ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();ctx.fillStyle='rgba(255,255,255,0.45)';ctx.font=(10*dpr)+'px -apple-system';ctx.textAlign='right';ctx.fillText(g+'dB',pad.l-4*dpr,y+4*dpr);});
   ctx.beginPath();ctx.strokeStyle='#4a9eff';ctx.lineWidth=2.5*dpr;
   freqs.forEach((f,i)=>{const x=xP(f),y=yP(gains[i]);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
   ctx.stroke();
 }
+['t1','t2','t3'].forEach(id=>{document.getElementById(id).addEventListener('input',function(){document.getElementById(id+'Val').textContent=this.value;drawCurve();});});
+document.getElementById('gain').addEventListener('input',function(){document.getElementById('gainVal').textContent=this.value+' dB';if(gainNode)gainNode.gain.value=Math.pow(10,parseFloat(this.value)/20);});
+document.getElementById('btnReset').addEventListener('click',()=>{document.getElementById('t1').value=3180;document.getElementById('t1Val').textContent='3180';document.getElementById('t2').value=318;document.getElementById('t2Val').textContent='318';document.getElementById('t3').value=75;document.getElementById('t3Val').textContent='75';document.getElementById('gain').value=0;document.getElementById('gainVal').textContent='0 dB';drawCurve();});
 
-// ── Sliders ───────────────────────────────────────────────────────
-['t1','t2','t3'].forEach(id=>{
-  document.getElementById(id).addEventListener('input',function(){
-    document.getElementById(id+'Val').textContent=this.value; drawCurve();
-  });
-});
-document.getElementById('gain').addEventListener('input',function(){
-  document.getElementById('gainVal').textContent=this.value+' dB';
-  if(gainNode) gainNode.gain.value=Math.pow(10,parseFloat(this.value)/20);
-});
-document.getElementById('btnReset').addEventListener('click',()=>{
-  document.getElementById('t1').value=3180;document.getElementById('t1Val').textContent='3180';
-  document.getElementById('t2').value=318;document.getElementById('t2Val').textContent='318';
-  document.getElementById('t3').value=75;document.getElementById('t3Val').textContent='75';
-  document.getElementById('gain').value=0;document.getElementById('gainVal').textContent='0 dB';
-  drawCurve();
+// ── Startup: restore file from IndexedDB ──────────────────────
+window.addEventListener('load',async()=>{
+  setTimeout(drawCurve,200);
+  try{
+    const saved=await IDB.load();
+    if(saved&&saved.data&&saved.name){
+      fileBuffer=saved.data.slice();
+      fileName=saved.name;
+      // Show file available, but DON'T decode yet — audioCtx not in user gesture
+      const dz=document.getElementById('dropzone');
+      dz.classList.add('loaded');
+      dz.innerHTML='<div>'+T[lang].loaded+'</div><div style="font-size:11px;margin-top:4px;word-break:break-all;">'+fileName+'</div>';
+      document.getElementById('btnPlay').disabled=false;
+      seekInput.disabled=false;
+      setSt(T[lang].restored,'ok');
+      // audioBuffer remains null until first Play tap (forces decode in user gesture)
+    }
+  }catch(e){}
 });
 
-window.addEventListener('load',()=>setTimeout(drawCurve,200));
-window.addEventListener('resize',drawCurve);
-if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{}));
 </script>
 </body>
 </html>
