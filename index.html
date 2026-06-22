@@ -212,7 +212,8 @@ function freshCtx(){
   audioBuffer=null; // force re-decode with new context
 }
 function ctxIsStale(){
-  return !audioCtx || audioCtx.state==='closed' || audioCtx.state==='suspended';
+  // suspended is NOT stale — resume() will handle it in doPlay() (still in gesture chain)
+  return !audioCtx || audioCtx.state==='closed';
 }
 
 // ── File load ─────────────────────────────────────────────────
@@ -302,6 +303,8 @@ function doPlay(fromPos){
   const safePos=Math.min(Math.max(fromPos||0,0),audioBuffer.duration-0.1);
   srcNode.start(0,safePos);
   startTime=audioCtx.currentTime-safePos;
+  // Resume suspended context AFTER start() — still in user gesture chain if called from click
+  if(audioCtx.state==='suspended') audioCtx.resume().catch(()=>{});
   isPlaying=true; syncPlayBtn();
   document.getElementById('btnStop').disabled=false;
   setSt(T[lang].playing,'ok');
