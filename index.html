@@ -203,18 +203,7 @@ seekInput.addEventListener('change',function(){
 });
 
 // ── AudioContext management ────────────────────────────────────
-// KEY: iOS cannot reuse AudioBuffer from a closed/replaced AudioContext.
-// Solution: whenever AudioContext is recreated, null audioBuffer to force re-decode.
-function freshCtx(){
-  // Must be called synchronously inside a click handler for iOS "running" state
-  if(audioCtx){try{audioCtx.close();}catch(e){}}
-  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-  audioBuffer=null; // force re-decode with new context
-}
-function ctxIsStale(){
-  // suspended is NOT stale — resume() will handle it in doPlay() (still in gesture chain)
-  return !audioCtx || audioCtx.state==='closed';
-}
+// Handled directly in Play click handler (3 cases: null/closed, suspended, running)
 
 // ── File load ─────────────────────────────────────────────────
 document.getElementById('fi').addEventListener('change',e=>{
@@ -256,29 +245,27 @@ async function decodeAndReady(){
   }
 }
 
-// ── Play button — synchronous AudioContext recovery ────────────
+// ── Play button ─────────────────────────────────────────────────
 document.getElementById('btnPlay').addEventListener('click',function(){
-  // STEP 1: Recreate AudioContext synchronously inside user gesture (iOS requirement)
-  // This also nulls audioBuffer, forcing re-decode from fileBuffer
-  if(ctxIsStale()) freshCtx();
+  if(isPlaying){ doPause(); return; }
 
-  // STEP 2: Re-decode if audioBuffer was nulled (or never existed)
-  if(!audioBuffer){
-    if(!fileBuffer){return;} // No file loaded at all
-    setSt(T[lang].decoding,'');
-    // audioCtx is now running (created above in step 1)
-    audioCtx.decodeAudioData(fileBuffer.slice()).then(buf=>{
-      audioBuffer=buf;
-      document.getElementById('tDur').textContent=fmtTime(buf.duration);
-      seekInput.disabled=false;
-      setSt(T[lang].ready,'ok');
-      doPlay(pausePos);
-    }).catch(()=>setSt(T[lang].decErr,'err'));
-    return; // wait for decode
-  }
+  // Create fresh AudioContext on every Play press.
+  // Synchronous creation inside user gesture = guaranteed 'running' on iOS.
+  // This eliminates ALL AudioContext suspension/resume issues.
+  if(audioCtx){ try{ audioCtx.close(); }catch(e){} }
+  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  audioBuffer=null;
 
-  // STEP 3: Normal play/pause
-  if(isPlaying) doPause(); else doPlay(pausePos);
+  if(!fileBuffer) return;
+  setSt(T[lang].decoding,'');
+
+  // decodeAudioData on a running context works fine even outside gesture chain
+  audioCtx.decodeAudioData(fileBuffer.slice()).then(function(buf){
+    audioBuffer=buf;
+    document.getElementById('tDur').textContent=fmtTime(buf.duration);
+    seekInput.disabled=false;
+    doPlay(pausePos);
+  }).catch(function(){ setSt(T[lang].decErr,'err'); });
 });
 
 document.getElementById('btnStop').addEventListener('click',()=>doStop());
@@ -303,8 +290,6 @@ function doPlay(fromPos){
   const safePos=Math.min(Math.max(fromPos||0,0),audioBuffer.duration-0.1);
   srcNode.start(0,safePos);
   startTime=audioCtx.currentTime-safePos;
-  // Resume suspended context AFTER start() — still in user gesture chain if called from click
-  if(audioCtx.state==='suspended') audioCtx.resume().catch(()=>{});
   isPlaying=true; syncPlayBtn();
   document.getElementById('btnStop').disabled=false;
   setSt(T[lang].playing,'ok');
