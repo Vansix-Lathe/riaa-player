@@ -98,6 +98,20 @@ canvas{width:100%;display:block;border-radius:10px;background:rgba(255,255,255,0
     <button class="resetbtn" id="btnReset" data-en="Reset to Standard Values" data-jp="標準値にリセット">Reset to Standard Values</button>
   </div>
   <div class="card">
+    <p class="sec" data-en="High-Pass Filter" data-jp="ハイパスフィルター" style="margin-bottom:10px;">High-Pass Filter</p>
+    <div class="slider-row">
+      <label data-en="HPF Cutoff" data-jp="カットオフ">HPF Cutoff</label>
+      <input type="range" id="hpf" min="20" max="500" step="5" value="150">
+      <span class="val" id="hpfVal">150 Hz</span>
+    </div>
+    <div class="slider-row">
+      <label data-en="HPF Q" data-jp="Q値">HPF Q</label>
+      <input type="range" id="hpfQ" min="0.1" max="2.0" step="0.1" value="0.7">
+      <span class="val" id="hpfQVal">0.7</span>
+    </div>
+    <p class="clip-note" data-en="Cuts frequencies below cutoff. Set to exciter's lower limit (150Hz) to prevent over-vibration." data-jp="カットオフ以下の周波数をカット。エキサイター下限（150Hz）に合わせて過振動を防ぐ。">Cuts frequencies below cutoff. Set to exciter's lower limit (150Hz) to prevent over-vibration.</p>
+  </div>
+  <div class="card">
     <p class="sec" data-en="RIAA Curve" data-jp="RIAAカーブ表示" style="margin-bottom:8px;">RIAA Curve</p>
     <canvas id="curve" height="200"></canvas>
   </div>
@@ -166,7 +180,7 @@ let audioCtx=null;
 let audioBuffer=null;    // Decoded PCM — tied to current audioCtx on iOS
 let fileBuffer=null;     // Original ArrayBuffer — survives AudioContext recreation
 let fileName='';
-let srcNode=null,gainNode=null,iirNode=null,splitter=null,anlL=null,anlR=null;
+let srcNode=null,gainNode=null,iirNode=null,hpfNode=null,splitter=null,anlL=null,anlR=null;
 let isPlaying=false,startTime=0,pausePos=0,animId=null,playGen=0;
 let isSeeking=false;
 
@@ -279,12 +293,16 @@ function doPlay(fromPos){
   gainNode=audioCtx.createGain(); gainNode.gain.value=Math.pow(10,p.gain/20);
   const c=buildCoeffs(p.t1,p.t2,p.t3,audioCtx.sampleRate);
   iirNode=audioCtx.createIIRFilter(c.ff,c.fb);
+  hpfNode=audioCtx.createBiquadFilter();
+  hpfNode.type='highpass';
+  hpfNode.frequency.value=p.hpf;
+  hpfNode.Q.value=p.hpfQ;
   splitter=audioCtx.createChannelSplitter(2);
   anlL=audioCtx.createAnalyser(); anlL.fftSize=2048;
   anlR=audioCtx.createAnalyser(); anlR.fftSize=2048;
   srcNode=audioCtx.createBufferSource(); srcNode.buffer=audioBuffer;
   srcNode.connect(iirNode); iirNode.connect(gainNode);
-  gainNode.connect(splitter);
+  gainNode.connect(hpfNode); hpfNode.connect(splitter);
   splitter.connect(anlL,0); splitter.connect(anlR,1);
   anlL.connect(audioCtx.destination); anlR.connect(audioCtx.destination);
   const safePos=Math.min(Math.max(fromPos||0,0),audioBuffer.duration-0.1);
@@ -324,7 +342,7 @@ function updateVU(){
 function loop(){if(!isPlaying)return;if(!isSeeking&&audioBuffer)updateSeekUI(Math.min(currentPos()/audioBuffer.duration,1));updateVU();animId=requestAnimationFrame(loop);}
 
 // ── RIAA curve ────────────────────────────────────────────────
-function getParams(){return{gain:parseFloat(document.getElementById('gain').value),t1:parseFloat(document.getElementById('t1').value)*1e-6,t2:parseFloat(document.getElementById('t2').value)*1e-6,t3:parseFloat(document.getElementById('t3').value)*1e-6};}
+function getParams(){return{gain:parseFloat(document.getElementById('gain').value),t1:parseFloat(document.getElementById('t1').value)*1e-6,t2:parseFloat(document.getElementById('t2').value)*1e-6,t3:parseFloat(document.getElementById('t3').value)*1e-6,hpf:parseFloat(document.getElementById('hpf').value),hpfQ:parseFloat(document.getElementById('hpfQ').value)};}
 function buildCoeffs(t1,t2,t3,sr){const k=2*sr,w1=2*Math.PI/t1,w2=2*Math.PI/t2,w3=2*Math.PI/t3,b0=(k+w1)*(k+w3),b1=(-(k+w1)*(k-w3)-(k-w1)*(k+w3)),b2=(k-w1)*(k-w3),a0=(k+w2)*(k+w3),a1=(-(k+w2)*(k-w3)-(k-w2)*(k+w3)),a2=(k-w2)*(k-w3);return{ff:[b0/a0,b1/a0,b2/a0],fb:[1,a1/a0,a2/a0]};}
 function drawCurve(){
   const p=getParams(),cv=document.getElementById('curve'),dpr=window.devicePixelRatio||1;
@@ -342,10 +360,23 @@ function drawCurve(){
   ctx.beginPath();ctx.strokeStyle='#4a9eff';ctx.lineWidth=2.5*dpr;
   freqs.forEach((f,i)=>{const x=xP(f),y=yP(gains[i]);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
   ctx.stroke();
+  // HPF combined curve (orange)
+  const hpfF=p.hpf,hpfQ=p.hpfQ;
+  function hpfGain(f){const w=2*Math.PI*f,w0=2*Math.PI*hpfF,r=w/w0;const num=r*r,den=Math.sqrt(Math.pow(r*r-1,2)+Math.pow(r/hpfQ,2));return num/den;}
+  const combined=freqs.map((f,i)=>gains[i]+20*Math.log10(Math.max(hpfGain(f),1e-10)));
+  ctx.beginPath();ctx.strokeStyle='#f5a623';ctx.lineWidth=2*dpr;ctx.setLineDash([6*dpr,3*dpr]);
+  freqs.forEach((f,i)=>{const x=xP(f),y=yP(combined[i]);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
+  ctx.stroke();ctx.setLineDash([]);
+  // Legend
+  ctx.font=(10*dpr)+'px -apple-system';ctx.textAlign='left';
+  ctx.fillStyle='#4a9eff';ctx.fillText('Inv.RIAA',pad.l+4*dpr,pad.t+14*dpr);
+  ctx.fillStyle='#f5a623';ctx.fillText('+ HPF',(pad.l+60*dpr),pad.t+14*dpr);
 }
 ['t1','t2','t3'].forEach(id=>{document.getElementById(id).addEventListener('input',function(){document.getElementById(id+'Val').textContent=this.value;drawCurve();});});
 document.getElementById('gain').addEventListener('input',function(){document.getElementById('gainVal').textContent=this.value+' dB';if(gainNode)gainNode.gain.value=Math.pow(10,parseFloat(this.value)/20);});
-document.getElementById('btnReset').addEventListener('click',()=>{document.getElementById('t1').value=3180;document.getElementById('t1Val').textContent='3180';document.getElementById('t2').value=318;document.getElementById('t2Val').textContent='318';document.getElementById('t3').value=75;document.getElementById('t3Val').textContent='75';document.getElementById('gain').value=0;document.getElementById('gainVal').textContent='0 dB';drawCurve();});
+document.getElementById('hpf').addEventListener('input',function(){document.getElementById('hpfVal').textContent=this.value+' Hz';if(hpfNode)hpfNode.frequency.value=parseFloat(this.value);drawCurve();});
+document.getElementById('hpfQ').addEventListener('input',function(){document.getElementById('hpfQVal').textContent=parseFloat(this.value).toFixed(1);if(hpfNode)hpfNode.Q.value=parseFloat(this.value);});
+document.getElementById('btnReset').addEventListener('click',()=>{document.getElementById('t1').value=3180;document.getElementById('t1Val').textContent='3180';document.getElementById('t2').value=318;document.getElementById('t2Val').textContent='318';document.getElementById('t3').value=75;document.getElementById('t3Val').textContent='75';document.getElementById('gain').value=0;document.getElementById('gainVal').textContent='0 dB';document.getElementById('hpf').value=150;document.getElementById('hpfVal').textContent='150 Hz';document.getElementById('hpfQ').value=0.7;document.getElementById('hpfQVal').textContent='0.7';drawCurve();});
 
 // ── Startup: restore file from IndexedDB ──────────────────────
 window.addEventListener('load',async()=>{
