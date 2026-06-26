@@ -376,7 +376,18 @@ function drawCurve(){
 ['t1','t2','t3'].forEach(id=>{document.getElementById(id).addEventListener('input',function(){document.getElementById(id+'Val').textContent=this.value;drawCurve();});});
 document.getElementById('gain').addEventListener('input',function(){document.getElementById('gainVal').textContent=this.value+' dB';if(gainNode)gainNode.gain.value=Math.pow(10,parseFloat(this.value)/20);});
 document.getElementById('hpf').addEventListener('input',function(){document.getElementById('hpfVal').textContent=this.value+' Hz';if(hpfNode)hpfNode.frequency.value=parseFloat(this.value);drawCurve();});
-document.getElementById('hpfQ').addEventListener('input',function(){document.getElementById('hpfQVal').textContent=parseFloat(this.value).toFixed(1);if(hpfNode)hpfNode.Q.value=parseFloat(this.value);});
+document.getElementById('hpfQ').addEventListener('input',function(){
+  document.getElementById('hpfQVal').textContent=parseFloat(this.value).toFixed(1);
+  if(hpfNode){
+    hpfNode.Q.value=parseFloat(this.value);
+    // iOS workaround: BiquadFilterNode doesn't recalculate coefficients on Q change alone
+    // Nudge frequency by 0.001Hz to force recalculation (inaudible)
+    const f=hpfNode.frequency.value;
+    hpfNode.frequency.value=f+0.001;
+    hpfNode.frequency.value=f;
+  }
+  drawCurve();
+});
 document.getElementById('btnResetHpf').addEventListener('click',()=>{document.getElementById('hpf').value=150;document.getElementById('hpfVal').textContent='150 Hz';document.getElementById('hpfQ').value=0.7;document.getElementById('hpfQVal').textContent='0.7';if(hpfNode){hpfNode.frequency.value=150;hpfNode.Q.value=0.7;}drawCurve();});
 document.getElementById('btnReset').addEventListener('click',()=>{document.getElementById('t1').value=3180;document.getElementById('t1Val').textContent='3180';document.getElementById('t2').value=318;document.getElementById('t2Val').textContent='318';document.getElementById('t3').value=75;document.getElementById('t3Val').textContent='75';document.getElementById('gain').value=0;document.getElementById('gainVal').textContent='0 dB';document.getElementById('hpf').value=150;document.getElementById('hpfVal').textContent='150 Hz';document.getElementById('hpfQ').value=0.7;document.getElementById('hpfQVal').textContent='0.7';drawCurve();});
 
