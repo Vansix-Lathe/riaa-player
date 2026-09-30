@@ -41,6 +41,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 .vu-bg{flex:1;height:16px;background:rgba(255,255,255,0.05);border-radius:4px;overflow:hidden;position:relative;}
 .vu-fill{height:100%;width:0%;background:linear-gradient(to right,var(--ok) 0%,var(--ok) 70%,var(--warn) 70%,var(--warn) 88%,var(--danger) 88%);border-radius:4px;transition:width 0.03s;}
 .vu-peak{position:absolute;top:0;width:3px;height:100%;background:#fff;opacity:.8;left:0%;transition:left 0.06s;}
+.vu-limit{font-size:10px;font-weight:700;color:var(--warn);width:32px;text-align:center;opacity:0;}
+.vu-limit.show{opacity:1;}
 .vu-clip{font-size:10px;font-weight:700;color:var(--danger);width:28px;text-align:center;opacity:0;}
 .vu-clip.show{opacity:1;}
 .vu-scale{display:flex;justify-content:space-between;font-size:9px;color:var(--sub);padding:0 2px;margin-bottom:4px;}
@@ -85,13 +87,13 @@ canvas{width:100%;display:block;border-radius:10px;background:rgba(255,255,255,0
     <input type="range" id="seekInput" class="seek-range" min="0" max="10000" value="0" disabled>
     <div class="time-row"><span id="tEl">0:00</span><span id="tDur">0:00</span></div>
     <div class="vu-scale"><span>-∞</span><span>-18</span><span>-12</span><span>-6</span><span>-3</span><span>0</span></div>
-    <div class="vu-row"><span class="vu-lbl">L</span><div class="vu-bg"><div class="vu-fill" id="vuL"></div><div class="vu-peak" id="pkL"></div></div><span class="vu-clip" id="clipL">CLIP</span></div>
-    <div class="vu-row"><span class="vu-lbl">R</span><div class="vu-bg"><div class="vu-fill" id="vuR"></div><div class="vu-peak" id="pkR"></div></div><span class="vu-clip" id="clipR">CLIP</span></div>
-    <p class="clip-note" data-en="Signal level after inverse RIAA + gain. Keep below <b>orange zone (-6dB)</b> to avoid stylus overload." data-jp="逆RIAA＋ゲイン後の信号レベル。<b>オレンジ帯（-6dB）以下</b>でカッティングすること。">Signal level after inverse RIAA + gain. Keep below <b>orange zone (-6dB)</b> to avoid stylus overload.</p>
+    <div class="vu-row"><span class="vu-lbl">L</span><div class="vu-bg"><div class="vu-fill" id="vuL"></div><div class="vu-peak" id="pkL"></div></div><span class="vu-limit" id="limitL">LIMIT</span><span class="vu-clip" id="clipL">CLIP</span></div>
+    <div class="vu-row"><span class="vu-lbl">R</span><div class="vu-bg"><div class="vu-fill" id="vuR"></div><div class="vu-peak" id="pkR"></div></div><span class="vu-limit" id="limitR">LIMIT</span><span class="vu-clip" id="clipR">CLIP</span></div>
+    <p class="clip-note" data-en="<b>LIMIT</b>=limiter active (protecting head). <b>CLIP</b>=digital overflow. Keep volume so LIMIT rarely lights." data-jp="<b>LIMIT</b>=リミッター動作中（ヘッド保護）。<b>CLIP</b>=デジタル過大。LIMITが頻繁に点灯しない音量に調整。"><b>LIMIT</b>=limiter active (protecting head). <b>CLIP</b>=digital overflow. Keep volume so LIMIT rarely lights.</p>
   </div>
   <div class="card">
     <p class="sec" data-en="Inverse RIAA Parameters" data-jp="逆RIAAパラメータ" style="margin-bottom:12px;">Inverse RIAA Parameters</p>
-    <div class="slider-row"><label data-en="Gain" data-jp="ゲイン">Gain</label><input type="range" id="gain" min="-20" max="20" step="1" value="0"><span class="val" id="gainVal">0 dB</span></div>
+    <div class="slider-row"><label data-en="Volume" data-jp="音量">Volume</label><input type="range" id="gain" min="-30" max="0" step="1" value="-10"><span class="val" id="gainVal">-10 dB</span></div>
     <div class="slider-row"><label>T1 (3180µs)</label><input type="range" id="t1" min="2000" max="4000" step="10" value="3180"><span class="val" id="t1Val">3180</span></div>
     <div class="slider-row"><label>T2 (318µs)</label><input type="range" id="t2" min="250" max="400" step="1" value="318"><span class="val" id="t2Val">318</span></div>
     <div class="slider-row"><label>T3 (75µs)</label><input type="range" id="t3" min="50" max="120" step="1" value="75"><span class="val" id="t3Val">75</span></div>
@@ -196,7 +198,9 @@ let audioCtx=null;
 let audioBuffer=null;    // Decoded PCM — tied to current audioCtx on iOS
 let fileBuffer=null;     // Original ArrayBuffer — survives AudioContext recreation
 let fileName='';
-let srcNode=null,gainNode=null,iirNode=null,hpfNode=null,notchNode=null,splitter=null,anlL=null,anlR=null;
+let srcNode=null,gainNode=null,iirNode=null,hpfNode=null,notchNode=null,limiterNode=null,splitter=null,anlL=null,anlR=null;
+// Limiter threshold: hardcoded protection limit (not user-adjustable)
+const LIMITER_THRESHOLD=-6; // dBFS
 let isPlaying=false,startTime=0,pausePos=0,animId=null,playGen=0;
 let isSeeking=false;
 
@@ -306,23 +310,29 @@ function doPlay(fromPos){
   killNodes();
   const gen=++playGen;
   const p=getParams();
-  gainNode=audioCtx.createGain(); gainNode.gain.value=Math.pow(10,p.gain/20);
+  // Signal chain: source → InvRIAA → HPF → Notch → Volume → Limiter → output
   const c=buildCoeffs(p.t1,p.t2,p.t3,audioCtx.sampleRate);
   iirNode=audioCtx.createIIRFilter(c.ff,c.fb);
   hpfNode=audioCtx.createBiquadFilter();
-  hpfNode.type='highpass';
-  hpfNode.frequency.value=p.hpf;
-  hpfNode.Q.value=p.hpfQ;
+  hpfNode.type='highpass'; hpfNode.frequency.value=p.hpf; hpfNode.Q.value=p.hpfQ;
   notchNode=audioCtx.createBiquadFilter();
-  notchNode.type='notch';
-  notchNode.frequency.value=p.notchF;
-  notchNode.Q.value=p.notchQ;
+  notchNode.type='notch'; notchNode.frequency.value=p.notchF; notchNode.Q.value=p.notchQ;
+  gainNode=audioCtx.createGain(); gainNode.gain.value=Math.pow(10,p.gain/20);
+  // Limiter: hardcoded threshold, not user-adjustable
+  limiterNode=audioCtx.createDynamicsCompressor();
+  limiterNode.threshold.value=LIMITER_THRESHOLD; // -6dBFS
+  limiterNode.ratio.value=20;      // 20:1 — approaching hard limit
+  limiterNode.attack.value=0.001;  // 1ms — fast response
+  limiterNode.release.value=0.1;   // 100ms
+  limiterNode.knee.value=0;        // Hard knee
   splitter=audioCtx.createChannelSplitter(2);
   anlL=audioCtx.createAnalyser(); anlL.fftSize=2048;
   anlR=audioCtx.createAnalyser(); anlR.fftSize=2048;
   srcNode=audioCtx.createBufferSource(); srcNode.buffer=audioBuffer;
-  srcNode.connect(iirNode); iirNode.connect(gainNode);
-  gainNode.connect(hpfNode); hpfNode.connect(notchNode); notchNode.connect(splitter);
+  srcNode.connect(iirNode);
+  iirNode.connect(hpfNode); hpfNode.connect(notchNode);
+  notchNode.connect(gainNode); gainNode.connect(limiterNode);
+  limiterNode.connect(splitter);
   splitter.connect(anlL,0); splitter.connect(anlR,1);
   anlL.connect(audioCtx.destination); anlR.connect(audioCtx.destination);
   const safePos=Math.min(Math.max(fromPos||0,0),audioBuffer.duration-0.1);
@@ -346,7 +356,7 @@ function killNodes(){if(srcNode){try{srcNode.stop();}catch(e){}srcNode=null;}if(
 // ── VU ────────────────────────────────────────────────────────
 let pkLv=0,pkRv=0,pkLt=0,pkRt=0,clipLt=0,clipRt=0;
 const PEAK_HOLD=2000,CLIP_HOLD=1500;
-function resetVU(){['vuL','vuR'].forEach(id=>document.getElementById(id).style.width='0%');['pkL','pkR'].forEach(id=>document.getElementById(id).style.left='0%');['clipL','clipR'].forEach(id=>document.getElementById(id).classList.remove('show'));pkLv=0;pkRv=0;}
+function resetVU(){['vuL','vuR'].forEach(id=>document.getElementById(id).style.width='0%');['pkL','pkR'].forEach(id=>document.getElementById(id).style.left='0%');['clipL','clipR','limitL','limitR'].forEach(id=>document.getElementById(id).classList.remove('show'));pkLv=0;pkRv=0;}
 function getPeak(a){const d=new Float32Array(a.fftSize);a.getFloatTimeDomainData(d);let m=0;for(let i=0;i<d.length;i++){const v=Math.abs(d[i]);if(v>m)m=v;}return m;}
 function linToPct(v){if(v<=0)return 0;const db=20*Math.log10(v);return Math.max(0,Math.min(100,(db+60)/60*100));}
 function updateVU(){
@@ -358,6 +368,14 @@ function updateVU(){
   document.getElementById('pkL').style.left=pkLv+'%'; document.getElementById('pkR').style.left=pkRv+'%';
   if(vL>=0.99){clipLt=now;document.getElementById('clipL').classList.add('show');}else if(now-clipLt>CLIP_HOLD)document.getElementById('clipL').classList.remove('show');
   if(vR>=0.99){clipRt=now;document.getElementById('clipR').classList.add('show');}else if(now-clipRt>CLIP_HOLD)document.getElementById('clipR').classList.remove('show');
+  // LIMIT: show when limiter is actively reducing gain (reduction < -0.5dB)
+  if(limiterNode && limiterNode.reduction<-0.5){
+    document.getElementById('limitL').classList.add('show');
+    document.getElementById('limitR').classList.add('show');
+  }else{
+    document.getElementById('limitL').classList.remove('show');
+    document.getElementById('limitR').classList.remove('show');
+  }
 }
 function loop(){if(!isPlaying)return;if(!isSeeking&&audioBuffer)updateSeekUI(Math.min(currentPos()/audioBuffer.duration,1));updateVU();animId=requestAnimationFrame(loop);}
 
@@ -435,7 +453,7 @@ document.getElementById('btnResetNotch').addEventListener('click',()=>{
   if(notchNode){notchNode.frequency.value=650;notchNode.Q.value=10;}
   drawCurve();
 });
-document.getElementById('btnReset').addEventListener('click',()=>{document.getElementById('t1').value=3180;document.getElementById('t1Val').textContent='3180';document.getElementById('t2').value=318;document.getElementById('t2Val').textContent='318';document.getElementById('t3').value=75;document.getElementById('t3Val').textContent='75';document.getElementById('gain').value=0;document.getElementById('gainVal').textContent='0 dB';document.getElementById('hpf').value=150;document.getElementById('hpfVal').textContent='150 Hz';document.getElementById('hpfQ').value=0.7;document.getElementById('hpfQVal').textContent='0.7';drawCurve();});
+document.getElementById('btnReset').addEventListener('click',()=>{document.getElementById('t1').value=3180;document.getElementById('t1Val').textContent='3180';document.getElementById('t2').value=318;document.getElementById('t2Val').textContent='318';document.getElementById('t3').value=75;document.getElementById('t3Val').textContent='75';document.getElementById('gain').value=-10;document.getElementById('gainVal').textContent='-10 dB';document.getElementById('hpf').value=150;document.getElementById('hpfVal').textContent='150 Hz';document.getElementById('hpfQ').value=0.7;document.getElementById('hpfQVal').textContent='0.7';drawCurve();});
 
 // ── Startup: restore file from IndexedDB ──────────────────────
 window.addEventListener('load',async()=>{
