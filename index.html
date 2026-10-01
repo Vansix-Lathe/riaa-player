@@ -115,19 +115,24 @@ canvas{width:100%;display:block;border-radius:10px;background:rgba(255,255,255,0
     <button class="resetbtn" id="btnResetHpf" data-en="Reset HPF" data-jp="HPFリセット">Reset HPF</button>
   </div>
   <div class="card">
-    <p class="sec" data-en="Notch Filter" data-jp="ノッチフィルター" style="margin-bottom:10px;">Notch Filter</p>
-    <div class="slider-row">
-      <label data-en="Frequency" data-jp="周波数">Frequency</label>
-      <input type="range" id="notchF" min="200" max="2000" step="10" value="650">
-      <span class="val" id="notchFVal">650 Hz</span>
+    <div class="card-header">
+      <p class="sec" data-en="Notch Filter" data-jp="ノッチフィルター">Notch Filter</p>
+      <button id="notchToggle" onclick="toggleNotch()" style="background:rgba(255,255,255,0.06);border:1px solid var(--border);border-radius:8px;padding:4px 14px;font-size:12px;font-weight:600;color:var(--sub);cursor:pointer;">OFF</button>
     </div>
-    <div class="slider-row">
-      <label data-en="Notch Q" data-jp="Q値">Notch Q</label>
-      <input type="range" id="notchQ" min="1" max="30" step="1" value="10">
-      <span class="val" id="notchQVal">10</span>
+    <div id="notchControls" style="opacity:0.35;pointer-events:none;">
+      <div class="slider-row">
+        <label data-en="Frequency" data-jp="周波数">Frequency</label>
+        <input type="range" id="notchF" min="200" max="2000" step="10" value="650">
+        <span class="val" id="notchFVal">650 Hz</span>
+      </div>
+      <div class="slider-row">
+        <label data-en="Notch Q" data-jp="Q値">Notch Q</label>
+        <input type="range" id="notchQ" min="1" max="30" step="1" value="10">
+        <span class="val" id="notchQVal">10</span>
+      </div>
+      <p class="clip-note" data-en="Cuts a specific frequency to suppress exciter resonance. Measure Fs first, then set here." data-jp="エキサイターの共振周波数をピンポイントカット。Fsを実測してから設定すること。">Cuts a specific frequency to suppress exciter resonance. Measure Fs first, then set here.</p>
+      <button class="resetbtn" id="btnResetNotch" data-en="Reset Notch" data-jp="ノッチリセット">Reset Notch</button>
     </div>
-    <p class="clip-note" data-en="Cuts a specific frequency. Set to exciter Fs (650Hz for DAEX13CT-4) to suppress resonance. Higher Q = narrower cut." data-jp="特定周波数をピンポイントカット。エキサイターのFs（DAEX13CT-4は650Hz）に合わせて共振を抑制。Q値が高いほど狭い帯域でカット。">Cuts a specific frequency. Set to exciter Fs (650Hz for DAEX13CT-4) to suppress resonance. Higher Q = narrower cut.</p>
-    <button class="resetbtn" id="btnResetNotch" data-en="Reset Notch" data-jp="ノッチリセット">Reset Notch</button>
   </div>
   <div class="card">
     <p class="sec" data-en="RIAA Curve" data-jp="RIAAカーブ表示" style="margin-bottom:8px;">RIAA Curve</p>
@@ -199,8 +204,33 @@ let audioBuffer=null;    // Decoded PCM — tied to current audioCtx on iOS
 let fileBuffer=null;     // Original ArrayBuffer — survives AudioContext recreation
 let fileName='';
 let srcNode=null,gainNode=null,iirNode=null,hpfNode=null,notchNode=null,limiterNode=null,splitter=null,anlL=null,anlR=null;
+let notchEnabled=false; // OFF by default
 // Limiter threshold: hardcoded protection limit (not user-adjustable)
 const LIMITER_THRESHOLD=-6; // dBFS
+
+function toggleNotch(){
+  notchEnabled=!notchEnabled;
+  const btn=document.getElementById('notchToggle');
+  const controls=document.getElementById('notchControls');
+  if(notchEnabled){
+    btn.textContent='ON';
+    btn.style.background='rgba(74,158,255,0.2)';
+    btn.style.borderColor='var(--accent)';
+    btn.style.color='var(--accent)';
+    controls.style.opacity='1';
+    controls.style.pointerEvents='auto';
+    if(notchNode) notchNode.type='notch';
+  }else{
+    btn.textContent='OFF';
+    btn.style.background='rgba(255,255,255,0.06)';
+    btn.style.borderColor='var(--border)';
+    btn.style.color='var(--sub)';
+    controls.style.opacity='0.35';
+    controls.style.pointerEvents='none';
+    if(notchNode) notchNode.type='allpass'; // bypass: flat response
+  }
+  drawCurve();
+}
 let isPlaying=false,startTime=0,pausePos=0,animId=null,playGen=0;
 let isSeeking=false;
 
@@ -316,7 +346,8 @@ function doPlay(fromPos){
   hpfNode=audioCtx.createBiquadFilter();
   hpfNode.type='highpass'; hpfNode.frequency.value=p.hpf; hpfNode.Q.value=p.hpfQ;
   notchNode=audioCtx.createBiquadFilter();
-  notchNode.type='notch'; notchNode.frequency.value=p.notchF; notchNode.Q.value=p.notchQ;
+  notchNode.type=notchEnabled?'notch':'allpass';
+  notchNode.frequency.value=p.notchF; notchNode.Q.value=p.notchQ;
   gainNode=audioCtx.createGain(); gainNode.gain.value=Math.pow(10,p.gain/20);
   // Limiter: hardcoded threshold, not user-adjustable
   limiterNode=audioCtx.createDynamicsCompressor();
@@ -404,15 +435,15 @@ function drawCurve(){
   // Notch gain function
   const nF=p.notchF,nQ=p.notchQ;
   function notchGain(f){const w=2*Math.PI*f,w0=2*Math.PI*nF,r=w/w0;const num=Math.pow(r*r-1,2),den=Math.pow(r*r-1,2)+Math.pow(r/nQ,2);return Math.sqrt(num/den);}
-  // HPF+Notch combined curve (orange)
-  const combined=freqs.map((f,i)=>gains[i]+20*Math.log10(Math.max(hpfGain(f),1e-10))+20*Math.log10(Math.max(notchGain(f),1e-10)));
+  // Combined curve (orange) - notch only when enabled
+  const combined=freqs.map((f,i)=>gains[i]+20*Math.log10(Math.max(hpfGain(f),1e-10))+(notchEnabled?20*Math.log10(Math.max(notchGain(f),1e-10)):0));
   ctx.beginPath();ctx.strokeStyle='#f5a623';ctx.lineWidth=2*dpr;ctx.setLineDash([6*dpr,3*dpr]);
   freqs.forEach((f,i)=>{const x=xP(f),y=yP(combined[i]);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
   ctx.stroke();ctx.setLineDash([]);
   // Legend
   ctx.font=(10*dpr)+'px -apple-system';ctx.textAlign='left';
   ctx.fillStyle='#4a9eff';ctx.fillText('Inv.RIAA',pad.l+4*dpr,pad.t+14*dpr);
-  ctx.fillStyle='#f5a623';ctx.fillText('+ HPF + Notch',(pad.l+60*dpr),pad.t+14*dpr);
+  ctx.fillStyle='#f5a623';ctx.fillText(notchEnabled?'+ HPF + Notch':'+ HPF',(pad.l+60*dpr),pad.t+14*dpr);
 }
 ['t1','t2','t3'].forEach(id=>{document.getElementById(id).addEventListener('input',function(){document.getElementById(id+'Val').textContent=this.value;drawCurve();});});
 document.getElementById('gain').addEventListener('input',function(){document.getElementById('gainVal').textContent=this.value+' dB';if(gainNode)gainNode.gain.value=Math.pow(10,parseFloat(this.value)/20);});
