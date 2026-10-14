@@ -140,6 +140,8 @@ canvas{width:100%;display:block;border-radius:10px;background:rgba(255,255,255,0
   </div>
   <p class="hint" data-en="Standard inverse RIAA (T1=3180µs / T2=318µs / T3=75µs) applied via Web Audio API IIR filter. Vansix exciter prototype validation tool." data-jp="標準RIAA逆カーブをリアルタイム適用。Vansixエキサイタープロトタイプ検証用。">Standard inverse RIAA applied via Web Audio API IIR filter. Vansix exciter prototype validation tool.</p>
 </div>
+<!-- Silent audio: keeps iOS audio session alive for background playback -->
+<audio id="silentAudio" loop preload="auto" style="display:none;"></audio>
 <script>
 // ── i18n ──────────────────────────────────────────────────────
 let lang='en';
@@ -205,6 +207,39 @@ let fileBuffer=null;     // Original ArrayBuffer — survives AudioContext recre
 let fileName='';
 let srcNode=null,gainNode=null,iirNode=null,hpfNode=null,notchNode=null,limiterNode=null,splitter=null,anlL=null,anlR=null;
 let notchEnabled=false; // OFF by default
+let silentAudio=null;
+
+// ── Silent audio setup (iOS background audio session) ──────────
+function setupSilentAudio(){
+  // Create a 1-second silent WAV to register iOS audio session
+  const sr=44100,len=sr;
+  const buf=new ArrayBuffer(44+len*2);
+  const v=new DataView(buf);
+  const ws=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
+  ws(0,'RIFF'); v.setUint32(4,36+len*2,true); ws(8,'WAVE');
+  ws(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true);
+  v.setUint16(22,1,true); v.setUint32(24,sr,true); v.setUint32(28,sr*2,true);
+  v.setUint16(32,2,true); v.setUint16(34,16,true);
+  ws(36,'data'); v.setUint32(40,len*2,true);
+  // Audio data left as zeros = silence
+  const blob=new Blob([buf],{type:'audio/wav'});
+  silentAudio=document.getElementById('silentAudio');
+  silentAudio.src=URL.createObjectURL(blob);
+}
+
+// ── Media Session API (lock screen controls) ───────────────────
+function updateMediaSession(playing){
+  if(!('mediaSession' in navigator)) return;
+  navigator.mediaSession.metadata=new MediaMetadata({
+    title: fileName||'Inverse RIAA Player',
+    artist:'Vansix',
+    album:'Record Cutting'
+  });
+  navigator.mediaSession.playbackState=playing?'playing':'paused';
+  navigator.mediaSession.setActionHandler('play',()=>{if(!isPlaying)doPlay(pausePos);});
+  navigator.mediaSession.setActionHandler('pause',()=>{if(isPlaying)doPause();});
+  navigator.mediaSession.setActionHandler('stop',()=>doStop());
+}
 // Limiter threshold: hardcoded protection limit (not user-adjustable)
 const LIMITER_THRESHOLD=-6; // dBFS
 
@@ -372,6 +407,9 @@ function doPlay(fromPos){
   isPlaying=true; syncPlayBtn();
   document.getElementById('btnStop').disabled=false;
   setSt(T[lang].playing,'ok');
+  // Start silent audio to register iOS audio session for background playback
+  if(silentAudio) silentAudio.play().catch(()=>{});
+  updateMediaSession(true);
   srcNode.onended=()=>{
     if(gen!==playGen||!isPlaying) return;
     isPlaying=false; pausePos=0;
@@ -380,8 +418,18 @@ function doPlay(fromPos){
   };
   loop();
 }
-function doPause(){pausePos=currentPos();killNodes();syncPlayBtn();setSt(T[lang].paused,'');}
-function doStop(){pausePos=0;killNodes();syncPlayBtn();document.getElementById('btnStop').disabled=true;setSt(T[lang].stopped,'');updateSeekUI(0);resetVU();}
+function doPause(){
+  pausePos=currentPos();killNodes();syncPlayBtn();setSt(T[lang].paused,'');
+  if(silentAudio) silentAudio.pause();
+  updateMediaSession(false);
+}
+function doStop(){
+  pausePos=0;killNodes();syncPlayBtn();
+  document.getElementById('btnStop').disabled=true;
+  setSt(T[lang].stopped,'');updateSeekUI(0);resetVU();
+  if(silentAudio){silentAudio.pause();silentAudio.currentTime=0;}
+  updateMediaSession(false);
+}
 function killNodes(){if(srcNode){try{srcNode.stop();}catch(e){}srcNode=null;}if(animId){cancelAnimationFrame(animId);animId=null;}isPlaying=false;}
 
 // ── VU ────────────────────────────────────────────────────────
@@ -488,6 +536,7 @@ document.getElementById('btnReset').addEventListener('click',()=>{document.getEl
 
 // ── Startup: restore file from IndexedDB ──────────────────────
 window.addEventListener('load',async()=>{
+  setupSilentAudio();
   setTimeout(drawCurve,200);
   try{
     const saved=await IDB.load();
@@ -506,14 +555,10 @@ window.addEventListener('load',async()=>{
   }catch(e){}
 });
 
-// Auto-pause when app returns from background
-// Without this, isPlaying stays true (showing "Pause") even though audio stopped
+// On return from background: ensure silent audio is playing to maintain iOS session
 document.addEventListener('visibilitychange',function(){
-  if(document.visibilityState==='visible' && isPlaying){
-    pausePos=currentPos();
-    killNodes();
-    syncPlayBtn();
-    setSt(T[lang].paused,'');
+  if(document.visibilityState==='visible' && isPlaying && silentAudio){
+    silentAudio.play().catch(()=>{});
   }
 });
 
