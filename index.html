@@ -310,6 +310,18 @@ document.getElementById('fi').addEventListener('change',e=>{
 });
 
 async function processFile(file){
+  // Reset everything tied to the previous track before loading the new one
+  killNodes();                 // stop old playback (also sets isPlaying=false)
+  pausePos=0;                  // clear carried-over position
+  isSeeking=false;
+  audioBuffer=null;            // drop old decoded track
+  if(silentAudio){silentAudio.pause();silentAudio.currentTime=0;}
+  syncPlayBtn();
+  document.getElementById('btnStop').disabled=true;
+  updateSeekUI(0);
+  document.getElementById('tEl').textContent='0:00';
+  document.getElementById('tDur').textContent='0:00';
+  resetVU();
   setSt(T[lang].loading,'');
   const reader=new FileReader();
   reader.onerror=()=>setSt(T[lang].readErr,'err');
