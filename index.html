@@ -82,7 +82,7 @@ canvas{width:100%;display:block;border-radius:10px;background:rgba(255,255,255,0
   </div>
   <div class="card">
     <p class="sec" data-en="Playback" data-jp="再生コントロール" style="margin-bottom:10px;">Playback</p>
-    <div class="notice" data-en="Before cutting: set iPhone Auto-Lock to <b>Never</b> (Settings → Display &amp; Brightness → Auto-Lock). Playback stops when the screen turns off." data-jp="カット前に：iPhoneの自動ロックを<b>「なし」</b>に設定してください（設定 → 画面表示と明るさ → 自動ロック）。画面が消えると再生が止まります。">Before cutting: set iPhone Auto-Lock to <b>Never</b> (Settings → Display &amp; Brightness → Auto-Lock). Playback stops when the screen turns off.</div>
+    <div class="notice" data-en="The screen stays on while playing. Switching to another app or pressing the side button stops playback. <b>Keep this app open</b> while cutting." data-jp="再生中は画面が自動でロックされません。ただし、他のアプリへの切り替えやサイドボタンの操作で再生が止まります。カット中はこのアプリを<b>開いたまま</b>にしてください。">The screen stays on while playing. Switching to another app or pressing the side button stops playback. <b>Keep this app open</b> while cutting.</div>
     <div class="ctrl-row">
       <button class="btn primary" id="btnPlay" disabled>Play</button>
       <button class="btn" id="btnStop" disabled data-en="Stop" data-jp="停止">Stop</button>
@@ -143,8 +143,6 @@ canvas{width:100%;display:block;border-radius:10px;background:rgba(255,255,255,0
   </div>
   <p class="hint" data-en="Standard inverse RIAA (T1=3180µs / T2=318µs / T3=75µs) applied via Web Audio API IIR filter. Vansix exciter prototype validation tool." data-jp="標準RIAA逆カーブをリアルタイム適用。Vansixエキサイタープロトタイプ検証用。">Standard inverse RIAA applied via Web Audio API IIR filter. Vansix exciter prototype validation tool.</p>
 </div>
-<!-- Silent audio: keeps iOS audio session alive for background playback -->
-<audio id="silentAudio" loop preload="auto" style="display:none;"></audio>
 <script>
 // ── i18n ──────────────────────────────────────────────────────
 let lang='en';
@@ -210,7 +208,6 @@ let fileBuffer=null;     // Original ArrayBuffer — survives AudioContext recre
 let fileName='';
 let srcNode=null,gainNode=null,iirNode=null,hpfNode=null,notchNode=null,limiterNode=null,splitter=null,anlL=null,anlR=null;
 let notchEnabled=false; // OFF by default
-let silentAudio=null;
 
 // ── Keep screen on while playing ──
 // Method A: hidden looping video (works where native Wake Lock fails in iOS home-screen apps)
@@ -256,36 +253,11 @@ function releaseWakeLock(){
   if(wakeLock){wakeLock.release().catch(()=>{});wakeLock=null;}
 }
 
-// ── Silent audio setup (iOS background audio session) ──────────
-function setupSilentAudio(){
-  // Create a 1-second silent WAV to register iOS audio session
-  const sr=44100,len=sr;
-  const buf=new ArrayBuffer(44+len*2);
-  const v=new DataView(buf);
-  const ws=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
-  ws(0,'RIFF'); v.setUint32(4,36+len*2,true); ws(8,'WAVE');
-  ws(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true);
-  v.setUint16(22,1,true); v.setUint32(24,sr,true); v.setUint32(28,sr*2,true);
-  v.setUint16(32,2,true); v.setUint16(34,16,true);
-  ws(36,'data'); v.setUint32(40,len*2,true);
-  // Audio data left as zeros = silence
-  const blob=new Blob([buf],{type:'audio/wav'});
-  silentAudio=document.getElementById('silentAudio');
-  silentAudio.src=URL.createObjectURL(blob);
-}
-
-// ── Media Session API (lock screen controls) ───────────────────
-function updateMediaSession(playing){
-  if(!('mediaSession' in navigator)) return;
-  navigator.mediaSession.metadata=new MediaMetadata({
-    title: fileName||'Inverse RIAA Player',
-    artist:'Vansix',
-    album:'Record Cutting'
-  });
-  navigator.mediaSession.playbackState=playing?'playing':'paused';
-  navigator.mediaSession.setActionHandler('play',()=>{if(!isPlaying)startFromGesture();});
-  navigator.mediaSession.setActionHandler('pause',()=>{if(isPlaying)doPause();});
-  navigator.mediaSession.setActionHandler('stop',()=>doStop());
+// ── iOS audio session ──────────────────────────────────────────
+// 'playback' lets Web Audio sound even with the ring/silent switch on,
+// without adding a lock-screen Now Playing entry. (iOS 16.4+; ignored elsewhere.)
+function setAudioSessionPlayback(){
+  try{ if(navigator.audioSession) navigator.audioSession.type='playback'; }catch(e){}
 }
 // Limiter threshold: hardcoded protection limit (not user-adjustable)
 const LIMITER_THRESHOLD=-6; // dBFS
@@ -359,10 +331,10 @@ document.getElementById('fi').addEventListener('change',e=>{
 async function processFile(file){
   // Reset everything tied to the previous track before loading the new one
   killNodes();                 // stop old playback (also sets isPlaying=false)
+  releaseWakeLock();           // nothing is playing now: let the screen sleep
   pausePos=0;                  // clear carried-over position
   isSeeking=false;
   audioBuffer=null;            // drop old decoded track
-  if(silentAudio){silentAudio.pause();silentAudio.currentTime=0;}
   syncPlayBtn();
   document.getElementById('btnStop').disabled=true;
   updateSeekUI(0);
@@ -410,13 +382,7 @@ document.getElementById('btnPlay').addEventListener('click',function(){
 });
 
 function startFromGesture(){
-  // MUST run synchronously inside the user gesture (tap / lock-screen play):
-  // start the silent <audio> first so iOS registers a media session.
-  // Calling this later (e.g. after async decode) is blocked by iOS.
-  if(silentAudio){
-    const pr=silentAudio.play();
-    if(pr&&pr.catch) pr.catch(function(e){console.warn('silentAudio blocked',e);});
-  }
+  setAudioSessionPlayback(); // run inside the tap gesture
   acquireWakeLock(); // keep screen awake while playing
 
   // Create fresh AudioContext on every Play press.
@@ -426,7 +392,7 @@ function startFromGesture(){
   audioCtx=new(window.AudioContext||window.webkitAudioContext)();
   audioBuffer=null;
 
-  if(!fileBuffer) return;
+  if(!fileBuffer){ releaseWakeLock(); return; }
   setSt(T[lang].decoding,'');
 
   // decodeAudioData on a running context works fine even outside gesture chain
@@ -435,7 +401,7 @@ function startFromGesture(){
     document.getElementById('tDur').textContent=fmtTime(buf.duration);
     seekInput.disabled=false;
     doPlay(pausePos);
-  }).catch(function(){ setSt(T[lang].decErr,'err'); });
+  }).catch(function(){ setSt(T[lang].decErr,'err'); releaseWakeLock(); });
 }
 
 document.getElementById('btnStop').addEventListener('click',()=>doStop());
@@ -484,9 +450,6 @@ function doPlay(fromPos){
   isPlaying=true; syncPlayBtn();
   document.getElementById('btnStop').disabled=false;
   setSt(T[lang].playing,'ok');
-  // Start silent audio to register iOS audio session for background playback
-  if(silentAudio) silentAudio.play().catch(()=>{});
-  updateMediaSession(true);
   srcNode.onended=()=>{
     if(gen!==playGen||!isPlaying) return;
     isPlaying=false; pausePos=0;
@@ -498,17 +461,13 @@ function doPlay(fromPos){
 }
 function doPause(){
   pausePos=currentPos();killNodes();syncPlayBtn();setSt(T[lang].paused,'');
-  if(silentAudio) silentAudio.pause();
   releaseWakeLock();
-  updateMediaSession(false);
 }
 function doStop(){
   pausePos=0;killNodes();syncPlayBtn();
   document.getElementById('btnStop').disabled=true;
   setSt(T[lang].stopped,'');updateSeekUI(0);resetVU();
-  if(silentAudio){silentAudio.pause();silentAudio.currentTime=0;}
   releaseWakeLock();
-  updateMediaSession(false);
 }
 function killNodes(){if(srcNode){try{srcNode.stop();}catch(e){}srcNode=null;}if(animId){cancelAnimationFrame(animId);animId=null;}isPlaying=false;}
 
@@ -616,7 +575,7 @@ document.getElementById('btnReset').addEventListener('click',()=>{document.getEl
 
 // ── Startup: restore file from IndexedDB ──────────────────────
 window.addEventListener('load',async()=>{
-  setupSilentAudio();
+  setAudioSessionPlayback();
   setTimeout(drawCurve,200);
   try{
     const saved=await IDB.load();
@@ -638,10 +597,11 @@ window.addEventListener('load',async()=>{
 // On return from background: ensure silent audio is playing to maintain iOS session
 document.addEventListener('visibilitychange',function(){
   if(document.visibilityState==='visible' && isPlaying){
-    if(silentAudio) silentAudio.play().catch(()=>{});
     acquireWakeLock();
   }
 });
+
+window.addEventListener('pagehide',function(){ releaseWakeLock(); });
 
 if('serviceWorker' in navigator) window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{}));
 </script>
