@@ -209,6 +209,20 @@ let srcNode=null,gainNode=null,iirNode=null,hpfNode=null,notchNode=null,limiterN
 let notchEnabled=false; // OFF by default
 let silentAudio=null;
 
+// ── Screen Wake Lock: keep screen on while playing (prevents auto-lock stopping audio) ──
+let wakeLock=null;
+async function acquireWakeLock(){
+  try{
+    if('wakeLock' in navigator && !wakeLock){
+      wakeLock=await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release',()=>{wakeLock=null;});
+    }
+  }catch(e){console.warn('wakeLock unavailable',e);}
+}
+function releaseWakeLock(){
+  if(wakeLock){wakeLock.release().catch(()=>{});wakeLock=null;}
+}
+
 // ── Silent audio setup (iOS background audio session) ──────────
 function setupSilentAudio(){
   // Create a 1-second silent WAV to register iOS audio session
@@ -236,7 +250,7 @@ function updateMediaSession(playing){
     album:'Record Cutting'
   });
   navigator.mediaSession.playbackState=playing?'playing':'paused';
-  navigator.mediaSession.setActionHandler('play',()=>{if(!isPlaying)doPlay(pausePos);});
+  navigator.mediaSession.setActionHandler('play',()=>{if(!isPlaying)startFromGesture();});
   navigator.mediaSession.setActionHandler('pause',()=>{if(isPlaying)doPause();});
   navigator.mediaSession.setActionHandler('stop',()=>doStop());
 }
@@ -359,6 +373,18 @@ async function decodeAndReady(){
 // ── Play button ─────────────────────────────────────────────────
 document.getElementById('btnPlay').addEventListener('click',function(){
   if(isPlaying){ doPause(); return; }
+  startFromGesture();
+});
+
+function startFromGesture(){
+  // MUST run synchronously inside the user gesture (tap / lock-screen play):
+  // start the silent <audio> first so iOS registers a media session.
+  // Calling this later (e.g. after async decode) is blocked by iOS.
+  if(silentAudio){
+    const pr=silentAudio.play();
+    if(pr&&pr.catch) pr.catch(function(e){console.warn('silentAudio blocked',e);});
+  }
+  acquireWakeLock(); // keep screen awake while playing
 
   // Create fresh AudioContext on every Play press.
   // Synchronous creation inside user gesture = guaranteed 'running' on iOS.
@@ -377,7 +403,7 @@ document.getElementById('btnPlay').addEventListener('click',function(){
     seekInput.disabled=false;
     doPlay(pausePos);
   }).catch(function(){ setSt(T[lang].decErr,'err'); });
-});
+}
 
 document.getElementById('btnStop').addEventListener('click',()=>doStop());
 
@@ -433,12 +459,14 @@ function doPlay(fromPos){
     isPlaying=false; pausePos=0;
     syncPlayBtn(); document.getElementById('btnStop').disabled=true;
     setSt(T[lang].done,''); updateSeekUI(0); resetVU();
+    releaseWakeLock();
   };
   loop();
 }
 function doPause(){
   pausePos=currentPos();killNodes();syncPlayBtn();setSt(T[lang].paused,'');
   if(silentAudio) silentAudio.pause();
+  releaseWakeLock();
   updateMediaSession(false);
 }
 function doStop(){
@@ -446,6 +474,7 @@ function doStop(){
   document.getElementById('btnStop').disabled=true;
   setSt(T[lang].stopped,'');updateSeekUI(0);resetVU();
   if(silentAudio){silentAudio.pause();silentAudio.currentTime=0;}
+  releaseWakeLock();
   updateMediaSession(false);
 }
 function killNodes(){if(srcNode){try{srcNode.stop();}catch(e){}srcNode=null;}if(animId){cancelAnimationFrame(animId);animId=null;}isPlaying=false;}
@@ -575,8 +604,9 @@ window.addEventListener('load',async()=>{
 
 // On return from background: ensure silent audio is playing to maintain iOS session
 document.addEventListener('visibilitychange',function(){
-  if(document.visibilityState==='visible' && isPlaying && silentAudio){
-    silentAudio.play().catch(()=>{});
+  if(document.visibilityState==='visible' && isPlaying){
+    if(silentAudio) silentAudio.play().catch(()=>{});
+    acquireWakeLock();
   }
 });
 
