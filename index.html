@@ -142,7 +142,7 @@ canvas{width:100%;display:block;border-radius:10px;background:rgba(255,255,255,0
     <canvas id="curve" height="200"></canvas>
   </div>
   <p class="hint" data-en="Standard inverse RIAA (T1=3180µs / T2=318µs / T3=75µs) applied via Web Audio API IIR filter. Vansix exciter prototype validation tool." data-jp="標準RIAA逆カーブをリアルタイム適用。Vansixエキサイタープロトタイプ検証用。">Standard inverse RIAA applied via Web Audio API IIR filter. Vansix exciter prototype validation tool.</p>
-  <p class="hint" style="text-align:center;opacity:.55;">Build v32</p>
+  <p class="hint" style="text-align:center;opacity:.55;">Build v33</p>
 </div>
 <script>
 // ── i18n ──────────────────────────────────────────────────────
@@ -263,25 +263,43 @@ function setAudioSessionPlayback(){
 
 // ── Lock-screen "Now Playing" (iOS creates this automatically for background audio) ──
 // We can't hide it, so keep it accurate: real title, real position, working buttons.
+let lastMetaTitle='';
+function setMediaMetadataIfChanged(){
+  // Re-creating metadata on every update makes iOS reset the lock-screen elapsed time to 0:00,
+  // so only set it when the track actually changes.
+  const title=(fileName||'Inverse RIAA Player').replace(/\.[^.]+$/,'');
+  if(title===lastMetaTitle) return;
+  navigator.mediaSession.metadata=new MediaMetadata({
+    title:title,
+    artist:'Vansix',
+    album:'Inverse RIAA Player',
+    artwork:[{src:'icon.png',sizes:'512x512',type:'image/png'}]
+  });
+  lastMetaTitle=title;
+}
+function applyPositionState(){
+  if(!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState || !audioBuffer) return;
+  const dur=audioBuffer.duration;
+  try{
+    navigator.mediaSession.setPositionState({
+      duration:dur, playbackRate:1,
+      position:Math.min(Math.max(currentPos(),0),dur)
+    });
+  }catch(e){}
+}
 function updateMediaSession(){
   if(!('mediaSession' in navigator)) return;
   try{
-    const dur=audioBuffer?audioBuffer.duration:0;
-    navigator.mediaSession.metadata=new MediaMetadata({
-      title:(fileName||'Inverse RIAA Player').replace(/\.[^.]+$/,''),
-      artist:'Vansix',
-      album:'Inverse RIAA Player',
-      artwork:[{src:'icon.png',sizes:'512x512',type:'image/png'}]
-    });
+    setMediaMetadataIfChanged();
     navigator.mediaSession.playbackState=isPlaying?'playing':'paused';
-    if(dur>0 && navigator.mediaSession.setPositionState){
-      navigator.mediaSession.setPositionState({
-        duration:dur, playbackRate:1,
-        position:Math.min(Math.max(currentPos(),0),dur)
-      });
-    }
+    applyPositionState();
+    // iOS may reset the elapsed time just after a state change: re-apply shortly afterwards
+    setTimeout(applyPositionState,300);
+    setTimeout(applyPositionState,1200);
   }catch(e){}
 }
+// keep the lock-screen position in sync while playing (also corrects any drift)
+setInterval(function(){ if(isPlaying) applyPositionState(); },5000);
 function seekToSec(sec){
   if(!audioBuffer) return;
   sec=Math.max(0,Math.min(sec,audioBuffer.duration-0.1));
