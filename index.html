@@ -142,7 +142,7 @@ canvas{width:100%;display:block;border-radius:10px;background:rgba(255,255,255,0
     <canvas id="curve" height="200"></canvas>
   </div>
   <p class="hint" data-en="Standard inverse RIAA (T1=3180µs / T2=318µs / T3=75µs) applied via Web Audio API IIR filter. Vansix exciter prototype validation tool." data-jp="標準RIAA逆カーブをリアルタイム適用。Vansixエキサイタープロトタイプ検証用。">Standard inverse RIAA applied via Web Audio API IIR filter. Vansix exciter prototype validation tool.</p>
-  <p class="hint" style="text-align:center;opacity:.55;">Build v33</p>
+  <p class="hint" style="text-align:center;opacity:.55;">Build v34</p>
 </div>
 <script>
 // ── i18n ──────────────────────────────────────────────────────
@@ -159,6 +159,7 @@ const T={
 };
 function setLang(l){
   lang=l;
+  try{ localStorage.setItem('riaa-lang',l); }catch(e){}
   document.getElementById('btnEN').classList.toggle('active',l==='en');
   document.getElementById('btnJP').classList.toggle('active',l==='jp');
   document.querySelectorAll('[data-en]').forEach(el=>{
@@ -277,29 +278,15 @@ function setMediaMetadataIfChanged(){
   });
   lastMetaTitle=title;
 }
-function applyPositionState(){
-  if(!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState || !audioBuffer) return;
-  const dur=audioBuffer.duration;
-  try{
-    navigator.mediaSession.setPositionState({
-      duration:dur, playbackRate:1,
-      position:Math.min(Math.max(currentPos(),0),dur)
-    });
-  }catch(e){}
-}
+// NOTE: playback position is intentionally NOT published to the lock screen.
+// For Web Audio, iOS resets the elapsed time to 0:00 on pause, which showed a wrong value.
 function updateMediaSession(){
   if(!('mediaSession' in navigator)) return;
   try{
     setMediaMetadataIfChanged();
     navigator.mediaSession.playbackState=isPlaying?'playing':'paused';
-    applyPositionState();
-    // iOS may reset the elapsed time just after a state change: re-apply shortly afterwards
-    setTimeout(applyPositionState,300);
-    setTimeout(applyPositionState,1200);
   }catch(e){}
 }
-// keep the lock-screen position in sync while playing (also corrects any drift)
-setInterval(function(){ if(isPlaying) applyPositionState(); },5000);
 function seekToSec(sec){
   if(!audioBuffer) return;
   sec=Math.max(0,Math.min(sec,audioBuffer.duration-0.1));
@@ -644,6 +631,15 @@ document.getElementById('btnReset').addEventListener('click',()=>{document.getEl
 
 // ── Startup: restore file from IndexedDB ──────────────────────
 window.addEventListener('load',async()=>{
+  // restore the saved language (default stays English)
+  try{
+    const saved=localStorage.getItem('riaa-lang');
+    if((saved==='jp'||saved==='en') && saved!==lang){
+      setLang(saved);
+      const st=document.getElementById('status');
+      if(st.textContent==='Standby') setSt(T[lang].standby,'');
+    }
+  }catch(e){}
   setAudioSessionPlayback();
   setupMediaSessionHandlers();
   setTimeout(drawCurve,200);
