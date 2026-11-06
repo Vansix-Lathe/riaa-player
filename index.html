@@ -48,6 +48,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;bac
 .vu-scale{display:flex;justify-content:space-between;font-size:9px;color:var(--sub);padding:0 2px;margin-bottom:4px;}
 .clip-note{font-size:10px;color:var(--sub);margin-top:6px;line-height:1.5;}
 .clip-note b{color:var(--warn);}
+.notice{background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.35);border-radius:10px;padding:8px 10px;font-size:11px;line-height:1.5;color:var(--text);margin-bottom:10px;}
+.notice b{color:var(--warn);}
 .slider-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
 .slider-row label{font-size:12px;color:var(--sub);width:80px;flex-shrink:0;}
 .slider-row input[type=range]{flex:1;-webkit-appearance:none;height:4px;border-radius:2px;background:rgba(255,255,255,0.15);}
@@ -80,6 +82,7 @@ canvas{width:100%;display:block;border-radius:10px;background:rgba(255,255,255,0
   </div>
   <div class="card">
     <p class="sec" data-en="Playback" data-jp="再生コントロール" style="margin-bottom:10px;">Playback</p>
+    <div class="notice" data-en="Before cutting: set iPhone Auto-Lock to <b>Never</b> (Settings → Display &amp; Brightness → Auto-Lock). Playback stops when the screen turns off." data-jp="カット前に：iPhoneの自動ロックを<b>「なし」</b>に設定してください（設定 → 画面表示と明るさ → 自動ロック）。画面が消えると再生が止まります。">Before cutting: set iPhone Auto-Lock to <b>Never</b> (Settings → Display &amp; Brightness → Auto-Lock). Playback stops when the screen turns off.</div>
     <div class="ctrl-row">
       <button class="btn primary" id="btnPlay" disabled>Play</button>
       <button class="btn" id="btnStop" disabled data-en="Stop" data-jp="停止">Stop</button>
