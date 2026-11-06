@@ -398,9 +398,15 @@ function doPlay(fromPos){
   srcNode.connect(iirNode);
   iirNode.connect(hpfNode); hpfNode.connect(notchNode);
   notchNode.connect(gainNode); gainNode.connect(limiterNode);
+  // Main output: stereo preserved, straight from limiter to speakers
+  limiterNode.connect(audioCtx.destination);
+  // Metering branch (analysis only): never feeds the output
+  // Analysers go to a zero-gain node so they keep processing without making sound
   limiterNode.connect(splitter);
   splitter.connect(anlL,0); splitter.connect(anlR,1);
-  anlL.connect(audioCtx.destination); anlR.connect(audioCtx.destination);
+  const meterSink=audioCtx.createGain(); meterSink.gain.value=0;
+  anlL.connect(meterSink); anlR.connect(meterSink);
+  meterSink.connect(audioCtx.destination);
   const safePos=Math.min(Math.max(fromPos||0,0),audioBuffer.duration-0.1);
   srcNode.start(0,safePos);
   startTime=audioCtx.currentTime-safePos;
