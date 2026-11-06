@@ -82,7 +82,7 @@ canvas{width:100%;display:block;border-radius:10px;background:rgba(255,255,255,0
   </div>
   <div class="card">
     <p class="sec" data-en="Playback" data-jp="再生コントロール" style="margin-bottom:10px;">Playback</p>
-    <div class="notice" data-en="The screen stays on while playing. Switching to another app or pressing the side button stops playback. <b>Keep this app open</b> while cutting." data-jp="再生中は画面が自動でロックされません。ただし、他のアプリへの切り替えやサイドボタンの操作で再生が止まります。カット中はこのアプリを<b>開いたまま</b>にしてください。">The screen stays on while playing. Switching to another app or pressing the side button stops playback. <b>Keep this app open</b> while cutting.</div>
+    <div class="notice" data-en="The screen stays on while playing. Playback continues if you turn the screen off or switch apps, but the VU meters pause meanwhile. <b>Always press Stop</b> when you finish cutting." data-jp="再生中は画面が自動でロックされません。画面を消したり他のアプリに切り替えても再生は続きますが、その間VUメーターは更新されません。カット終了後は<b>必ず「停止」</b>を押してください。">The screen stays on while playing. Playback continues if you turn the screen off or switch apps, but the VU meters pause meanwhile. <b>Always press Stop</b> when you finish cutting.</div>
     <div class="ctrl-row">
       <button class="btn primary" id="btnPlay" disabled>Play</button>
       <button class="btn" id="btnStop" disabled data-en="Stop" data-jp="停止">Stop</button>
@@ -142,7 +142,7 @@ canvas{width:100%;display:block;border-radius:10px;background:rgba(255,255,255,0
     <canvas id="curve" height="200"></canvas>
   </div>
   <p class="hint" data-en="Standard inverse RIAA (T1=3180µs / T2=318µs / T3=75µs) applied via Web Audio API IIR filter. Vansix exciter prototype validation tool." data-jp="標準RIAA逆カーブをリアルタイム適用。Vansixエキサイタープロトタイプ検証用。">Standard inverse RIAA applied via Web Audio API IIR filter. Vansix exciter prototype validation tool.</p>
-  <p class="hint" style="text-align:center;opacity:.55;">Build v31</p>
+  <p class="hint" style="text-align:center;opacity:.55;">Build v32</p>
 </div>
 <script>
 // ── i18n ──────────────────────────────────────────────────────
@@ -260,6 +260,51 @@ function releaseWakeLock(){
 function setAudioSessionPlayback(){
   try{ if(navigator.audioSession) navigator.audioSession.type='playback'; }catch(e){}
 }
+
+// ── Lock-screen "Now Playing" (iOS creates this automatically for background audio) ──
+// We can't hide it, so keep it accurate: real title, real position, working buttons.
+function updateMediaSession(){
+  if(!('mediaSession' in navigator)) return;
+  try{
+    const dur=audioBuffer?audioBuffer.duration:0;
+    navigator.mediaSession.metadata=new MediaMetadata({
+      title:(fileName||'Inverse RIAA Player').replace(/\.[^.]+$/,''),
+      artist:'Vansix',
+      album:'Inverse RIAA Player',
+      artwork:[{src:'icon.png',sizes:'512x512',type:'image/png'}]
+    });
+    navigator.mediaSession.playbackState=isPlaying?'playing':'paused';
+    if(dur>0 && navigator.mediaSession.setPositionState){
+      navigator.mediaSession.setPositionState({
+        duration:dur, playbackRate:1,
+        position:Math.min(Math.max(currentPos(),0),dur)
+      });
+    }
+  }catch(e){}
+}
+function seekToSec(sec){
+  if(!audioBuffer) return;
+  sec=Math.max(0,Math.min(sec,audioBuffer.duration-0.1));
+  if(isPlaying){ doPlay(sec); }
+  else{ pausePos=sec; updateSeekUI(sec/audioBuffer.duration); }
+  updateMediaSession();
+}
+function setupMediaSessionHandlers(){
+  if(!('mediaSession' in navigator)) return;
+  const ms=navigator.mediaSession;
+  const set=(a,f)=>{try{ms.setActionHandler(a,f);}catch(e){}};
+  set('play',()=>{
+    if(isPlaying) return;
+    if(audioCtx && audioBuffer && audioCtx.state!=='closed'){
+      audioCtx.resume().then(()=>doPlay(pausePos)).catch(()=>startFromGesture());
+    }else{ startFromGesture(); }
+  });
+  set('pause',()=>{ if(isPlaying) doPause(); });
+  set('stop',()=>doStop());
+  set('seekto',d=>{ if(d && d.seekTime!=null) seekToSec(d.seekTime); });
+  set('seekbackward',d=>seekToSec(currentPos()-((d&&d.seekOffset)||10)));
+  set('seekforward',d=>seekToSec(currentPos()+((d&&d.seekOffset)||10)));
+}
 // Limiter threshold: hardcoded protection limit (not user-adjustable)
 const LIMITER_THRESHOLD=-6; // dBFS
 
@@ -318,7 +363,7 @@ seekInput.addEventListener('change',function(){
   const r=this.value/10000;
   const pos=r*audioBuffer.duration;
   this.style.background=seekGrad(r);
-  if(isPlaying) doPlay(pos); else{pausePos=pos;document.getElementById('tEl').textContent=fmtTime(pos);}
+  if(isPlaying) doPlay(pos); else{pausePos=pos;document.getElementById('tEl').textContent=fmtTime(pos);updateMediaSession();}
 });
 
 // ── AudioContext management ────────────────────────────────────
@@ -371,6 +416,7 @@ async function decodeAndReady(){
     pausePos=0; updateSeekUI(0);
     setSt(T[lang].ready,'ok');
     drawCurve();
+    updateMediaSession();
   }catch(err){
     setSt(T[lang].decErr,'err');
   }
@@ -449,6 +495,7 @@ function doPlay(fromPos){
   srcNode.start(0,safePos);
   startTime=audioCtx.currentTime-safePos;
   isPlaying=true; syncPlayBtn();
+  updateMediaSession();
   document.getElementById('btnStop').disabled=false;
   setSt(T[lang].playing,'ok');
   srcNode.onended=()=>{
@@ -457,18 +504,21 @@ function doPlay(fromPos){
     syncPlayBtn(); document.getElementById('btnStop').disabled=true;
     setSt(T[lang].done,''); updateSeekUI(0); resetVU();
     releaseWakeLock();
+    updateMediaSession();
   };
   loop();
 }
 function doPause(){
   pausePos=currentPos();killNodes();syncPlayBtn();setSt(T[lang].paused,'');
   releaseWakeLock();
+  updateMediaSession();
 }
 function doStop(){
   pausePos=0;killNodes();syncPlayBtn();
   document.getElementById('btnStop').disabled=true;
   setSt(T[lang].stopped,'');updateSeekUI(0);resetVU();
   releaseWakeLock();
+  updateMediaSession();
 }
 function killNodes(){if(srcNode){try{srcNode.stop();}catch(e){}srcNode=null;}if(animId){cancelAnimationFrame(animId);animId=null;}isPlaying=false;}
 
@@ -577,6 +627,7 @@ document.getElementById('btnReset').addEventListener('click',()=>{document.getEl
 // ── Startup: restore file from IndexedDB ──────────────────────
 window.addEventListener('load',async()=>{
   setAudioSessionPlayback();
+  setupMediaSessionHandlers();
   setTimeout(drawCurve,200);
   try{
     const saved=await IDB.load();

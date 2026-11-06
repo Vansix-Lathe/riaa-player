@@ -1,5 +1,5 @@
 // Network-first: always try the latest files; fall back to cache only when offline.
-const CACHE_NAME = 'riaa-player-v31';
+const CACHE_NAME = 'riaa-player-v32';
 const urlsToCache = ['./index.html','./manifest.json','./icon.png'];
 
 self.addEventListener('install', e => {
